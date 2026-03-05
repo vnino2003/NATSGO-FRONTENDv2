@@ -102,8 +102,7 @@
 
               <span class="tm-pill soft">
                 <i class="fas fa-bus"></i>
-                {{ Number(t.bus_count ?? 0) }} inside
-              </span>
+{{ liveCountForTerminal(t) }} inside              </span>
             </div>
           </div>
 
@@ -149,15 +148,17 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from "vue";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 
-/* ✅ IMPORTANT: make sure this path matches your real file name:
-   If your file is src/composables/useTerminals.js -> useTerminals (plural) */
-import { useTerminals } from "@/composables/useTerminal";
+import { useTerminals } from "@/composables/useTerminal"; // ✅ PLURAL
+import { useLiveBuses } from "@/composables/useLiveBuses";
 
 const router = useRouter();
 const { rows, loading, error, fetchTerminals } = useTerminals();
+
+// live buses polling
+const { buses, start, stop, fetchOnce } = useLiveBuses({ intervalMs: 1500 });
 
 const query = ref("");
 const activeCategory = ref("All");
@@ -186,10 +187,55 @@ function hoursLabel(t) {
   return "Hours not set";
 }
 
+/* ✅ terminal state helpers (same idea as your Details page) */
+function isAtTerminal(bus) {
+  const v =
+    bus?.at_terminal ??
+    bus?.atTerminal ??
+    bus?.terminal_state?.at_terminal ??
+    bus?.terminal_state?.atTerminal ??
+    bus?.terminal_state?.atTerminalFlag;
+
+  return Number(v) === 1 || v === true;
+}
+
+function busCurrentTerminalId(bus) {
+  const v =
+    bus?.terminal_state?.current_terminal_id ??
+    bus?.terminal_state?.currentTerminalId ??
+    bus?.current_terminal_id ??
+    bus?.currentTerminalId;
+
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+/* ✅ OFFLINE filter (use what you have in payload) */
+const OFFLINE_AFTER_SECONDS = 120;
+
+function isOnline(bus) {
+  // if backend already gives a boolean, use it
+  if (typeof bus?.is_offline === "boolean") return !bus.is_offline;
+
+  // if backend gives a status string
+  const s = String(bus?.device_status ?? bus?.status ?? "").toLowerCase();
+  if (s === "offline") return false;
+  if (s === "online") return true;
+
+  // fallback: use last_seen_at
+  const last = bus?.last_seen_at ?? bus?.device_last_seen_at ?? bus?.terminal_state?.last_seen_at;
+  if (!last) return true; // if no data, don't auto-hide
+  const t = new Date(last).getTime();
+  if (!Number.isFinite(t)) return true;
+
+  const ageSec = (Date.now() - t) / 1000;
+  return ageSec <= OFFLINE_AFTER_SECONDS;
+}
+
 /* data */
 const terminals = computed(() => (Array.isArray(rows.value) ? rows.value : []));
 
-/* categories (from city) */
+/* categories */
 const categories = computed(() => {
   const set = new Set();
   for (const t of terminals.value) {
@@ -199,7 +245,7 @@ const categories = computed(() => {
   return ["All", ...Array.from(set)];
 });
 
-/* filtered */
+/* filtered list */
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
 
@@ -216,6 +262,29 @@ const filtered = computed(() => {
   });
 });
 
+/* ✅ LIVE count map: terminal_id -> number of buses inside NOW */
+const liveInsideCountByTerminal = computed(() => {
+  const map = new Map();
+
+  for (const b of buses.value || []) {
+    if (!isOnline(b)) continue;
+    if (!isAtTerminal(b)) continue;
+
+    const tid = busCurrentTerminalId(b);
+    if (!Number.isFinite(tid)) continue;
+
+    map.set(tid, (map.get(tid) || 0) + 1);
+  }
+
+  return map;
+});
+
+function liveCountForTerminal(t) {
+  const tid = Number(t?.terminal_id);
+  if (!Number.isFinite(tid)) return 0;
+  return liveInsideCountByTerminal.value.get(tid) || 0;
+}
+
 /* actions */
 function toggleTips() {
   showTips.value = !showTips.value;
@@ -227,6 +296,7 @@ function resetFilters() {
 }
 async function reload() {
   await fetchTerminals({ q: query.value || "" });
+  await fetchOnce(); // refresh live buses too
 }
 
 /* Google maps url */
@@ -236,7 +306,6 @@ function mapsUrl(t) {
   return `https://www.google.com/maps/search/?api=1&query=${text}`;
 }
 
-/* ✅ Card click -> details */
 function goToDetails(t) {
   const terminalId = Number(t?.terminal_id);
   if (!Number.isFinite(terminalId)) return;
@@ -247,7 +316,6 @@ function goToDetails(t) {
   });
 }
 
-/* ✅ Button only -> Live Track */
 function goToTrack(t) {
   const terminalId = Number(t?.terminal_id);
   if (!Number.isFinite(terminalId)) return;
@@ -271,9 +339,12 @@ watch(
 
 onMounted(async () => {
   await fetchTerminals({ q: "" });
+  start();
+  await fetchOnce();
 });
-</script>
 
+onUnmounted(() => stop());
+</script>
 <style scoped>
 /* keep your existing CSS (same as before) */
 .tm-page {
