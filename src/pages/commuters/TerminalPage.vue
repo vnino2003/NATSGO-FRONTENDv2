@@ -116,11 +116,6 @@
             <i class="fas fa-clock"></i>
             <span>{{ hoursLabel(t) }}</span>
           </div>
-
-          <div v-if="hasCoords(t)" class="tm-meta-item muted">
-            <i class="fas fa-map-pin"></i>
-            <span>Lat {{ Number(t.lat).toFixed(4) }}, Lng {{ Number(t.lng).toFixed(4) }}</span>
-          </div>
         </div>
 
         <!-- ✅ buttons do NOT trigger card click -->
