@@ -1,143 +1,125 @@
-<!-- src/pages/commuters/TerminalPage.vue
-     UPDATED:
-     ✅ card click -> TerminalDetailsPage
-     ✅ "View on Live Track" button only -> TrackBusPage
--->
+<!-- src/pages/commuters/TerminalPage.vue -->
 <template>
-  <div class="tm-page">
-    <!-- Top -->
-    <div class="tm-top">
-      <div class="tm-header">
-        <div class="tm-title">
-          <div class="tm-icon">
-            <i class="fas fa-building"></i>
-          </div>
-          <div class="tm-title-text">
-            <div class="tm-title-main">Terminals</div>
-            <div class="tm-title-sub">Tap a terminal card to view details • Use button for Live Track</div>
-          </div>
-        </div>
+  <div class="tp-page">
 
-        <button class="tm-icon-btn" type="button" @click="toggleTips" aria-label="Help">
+    <!-- ── Header ── -->
+    <div class="tp-header">
+      <div class="tp-header-top">
+        <div class="tp-header-title-group">
+          <span class="tp-label">Terminals</span>
+          <span class="tp-count-pill">{{ filtered.length }}</span>
+        </div>
+        <button class="tp-icon-btn" type="button" @click="toggleTips" aria-label="Help">
           <i class="fas fa-circle-info"></i>
         </button>
       </div>
 
       <!-- Search -->
-      <div class="tm-search">
-        <i class="fas fa-magnifying-glass"></i>
+      <div class="tp-search">
+        <i class="fas fa-magnifying-glass tp-search-icon"></i>
         <input
           v-model="query"
-          class="tm-search-input"
+          class="tp-search-input"
           type="text"
-          placeholder='Search terminal (e.g., "Calapan", "Naujan")'
+          placeholder="Search terminals…"
         />
-        <button v-if="query" class="tm-clear" type="button" aria-label="Clear" @click="query = ''">
-          <i class="fas fa-times"></i>
+        <button v-if="query" class="tp-search-clear" type="button" @click="query = ''">
+          <i class="fas fa-xmark"></i>
         </button>
       </div>
 
-      <!-- Chips -->
-      <div class="tm-chips">
+      <!-- City filter chips -->
+      <div class="tp-chips">
         <button
           v-for="c in categories"
           :key="c"
-          class="tm-chip"
+          class="tp-chip"
           :class="{ active: activeCategory === c }"
           type="button"
           @click="activeCategory = c"
-        >
-          {{ c }}
-        </button>
-
-        <span class="tm-count">{{ filtered.length }}</span>
+        >{{ c }}</button>
       </div>
 
       <!-- Tips -->
       <Transition name="fade">
-        <div v-if="showTips" class="tm-tips">
+        <div v-if="showTips" class="tp-tips">
           <i class="fas fa-lightbulb"></i>
-          Tap a terminal <b>card</b> to open <b>Details</b>. Use the <b>View on Live Track</b> button to open the map.
+          <span>Tap a card to open <b>Details</b>. Use <b>View on Live Track</b> to open the map.</span>
         </div>
       </Transition>
 
       <!-- Loading / Error -->
       <Transition name="fade">
-        <div v-if="loading" class="tm-banner tm-banner--loading">
+        <div v-if="loading" class="tp-notice">
           <i class="fas fa-spinner fa-spin"></i>
           <span>Loading terminals…</span>
         </div>
       </Transition>
-
       <Transition name="fade">
-        <div v-if="error" class="tm-banner tm-banner--error">
+        <div v-if="error" class="tp-notice tp-notice--error">
           <i class="fas fa-triangle-exclamation"></i>
           <span>{{ error }}</span>
-          <button class="tm-retry" type="button" @click="reload">
-            <i class="fas fa-rotate"></i> Retry
-          </button>
+          <button class="tp-retry" type="button" @click="reload">Retry</button>
         </div>
       </Transition>
     </div>
 
-    <!-- List -->
-    <div class="tm-list">
-      <!-- ✅ card click goes to details now -->
+    <!-- ── List ── -->
+    <div class="tp-list">
       <button
         v-for="t in filtered"
         :key="t.terminal_id"
-        class="tm-card"
+        class="tp-card"
         type="button"
         @click="goToDetails(t)"
       >
-        <div class="tm-card-top">
-          <div class="tm-card-main">
-            <div class="tm-name">{{ t.terminal_name || "Terminal" }}</div>
-
-            <div class="tm-sub">
-              <span class="tm-pill">
-                <i class="fas fa-location-dot"></i>
-                {{ t.city || "—" }}
-              </span>
-
-              <span class="tm-pill soft">
-                <i class="fas fa-bus"></i>
-{{ liveCountForTerminal(t) }} inside              </span>
+        <!-- Card top row -->
+        <div class="tp-card-row">
+          <div class="tp-card-info">
+            <div class="tp-card-name">{{ t.terminal_name || "Terminal" }}</div>
+            <div class="tp-card-city">
+              <i class="fas fa-location-dot"></i>
+              {{ t.city || "—" }}
             </div>
           </div>
 
-          <div class="tm-arrow">
-            <i class="fas fa-chevron-right"></i>
+          <div class="tp-card-right">
+            <div class="tp-buses-badge" :class="liveCountForTerminal(t) > 0 ? 'active' : ''">
+              <i class="fas fa-bus"></i>
+              {{ liveCountForTerminal(t) }}
+            </div>
+            <i class="fas fa-chevron-right tp-chevron"></i>
           </div>
         </div>
 
-        <div class="tm-meta">
-          <div class="tm-meta-item">
-            <i class="fas fa-clock"></i>
-            <span>{{ hoursLabel(t) }}</span>
-          </div>
+        <!-- Hours -->
+        <div class="tp-card-hours">
+          <i class="fas fa-clock"></i>
+          <span>{{ hoursLabel(t) }}</span>
         </div>
 
-        <!-- ✅ buttons do NOT trigger card click -->
-        <div class="tm-actions" @click.stop>
-          <button class="tm-btn primary" type="button" @click.stop="goToTrack(t)">
-            <i class="fas fa-map-location-dot"></i> View on Live Track
+        <!-- Actions -->
+        <div class="tp-card-actions" @click.stop>
+          <button class="tp-action-btn tp-action-btn--primary" type="button" @click.stop="goToTrack(t)">
+            <i class="fas fa-map-location-dot"></i>
+            Live Track
           </button>
-
-          <a class="tm-btn" :href="mapsUrl(t)" target="_blank" rel="noopener noreferrer" @click.stop>
-            <i class="fas fa-map"></i> Open Google Maps
+          <a class="tp-action-btn" :href="mapsUrl(t)" target="_blank" rel="noopener noreferrer" @click.stop>
+            <i class="fas fa-map"></i>
+            Maps
           </a>
         </div>
       </button>
 
-      <div v-if="!loading && filtered.length === 0" class="tm-empty">
-        <i class="fas fa-building"></i>
-        <div class="tm-empty-title">No terminals found</div>
-        <div class="tm-empty-sub">Try a different keyword or category.</div>
-        <button class="tm-reset" type="button" @click="resetFilters">Reset</button>
+      <!-- Empty -->
+      <div v-if="!loading && filtered.length === 0" class="tp-empty">
+        <div class="tp-empty-icon"><i class="fas fa-building"></i></div>
+        <p class="tp-empty-title">No terminals found</p>
+        <p class="tp-empty-sub">Try a different keyword or category.</p>
+        <button class="tp-reset-btn" type="button" @click="resetFilters">Reset filters</button>
       </div>
 
-      <div style="height: 10px"></div>
+      <div style="height: 16px;"></div>
     </div>
   </div>
 </template>
@@ -145,445 +127,437 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
-
-import { useTerminals } from "@/composables/useTerminal"; // ✅ PLURAL
+import { useTerminals } from "@/composables/useTerminal";
 import { useLiveBuses } from "@/composables/useLiveBuses";
 
 const router = useRouter();
 const { rows, loading, error, fetchTerminals } = useTerminals();
-
-// live buses polling
 const { buses, start, stop, fetchOnce } = useLiveBuses({ intervalMs: 1500 });
 
 const query = ref("");
 const activeCategory = ref("All");
 const showTips = ref(false);
 
-/* helpers */
-function clean(s) {
-  return String(s ?? "").trim();
-}
+function clean(s) { return String(s ?? "").trim(); }
 function hasCoords(t) {
-  const lat = Number(t?.lat);
-  const lng = Number(t?.lng);
+  const lat = Number(t?.lat), lng = Number(t?.lng);
   return Number.isFinite(lat) && Number.isFinite(lng);
 }
 function toHHMM(v) {
-  const s = clean(v);
-  if (!s) return "";
+  const s = clean(v); if (!s) return "";
   const parts = s.split(":");
-  if (parts.length >= 2) return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+  if (parts.length >= 2) return `${parts[0].padStart(2,"0")}:${parts[1].padStart(2,"0")}`;
   return s;
 }
 function hoursLabel(t) {
-  const from = toHHMM(t?.available_from);
-  const to = toHHMM(t?.available_to);
-  if (from && to) return `${from} – ${to}`;
-  return "Hours not set";
+  const from = toHHMM(t?.available_from), to = toHHMM(t?.available_to);
+  return (from && to) ? `${from} – ${to}` : "Hours not set";
 }
-
-/* ✅ terminal state helpers (same idea as your Details page) */
 function isAtTerminal(bus) {
-  const v =
-    bus?.at_terminal ??
-    bus?.atTerminal ??
-    bus?.terminal_state?.at_terminal ??
-    bus?.terminal_state?.atTerminal ??
-    bus?.terminal_state?.atTerminalFlag;
-
+  const v = bus?.at_terminal ?? bus?.atTerminal ?? bus?.terminal_state?.at_terminal ?? bus?.terminal_state?.atTerminal ?? bus?.terminal_state?.atTerminalFlag;
   return Number(v) === 1 || v === true;
 }
-
 function busCurrentTerminalId(bus) {
-  const v =
-    bus?.terminal_state?.current_terminal_id ??
-    bus?.terminal_state?.currentTerminalId ??
-    bus?.current_terminal_id ??
-    bus?.currentTerminalId;
-
-  const n = Number(v);
-  return Number.isFinite(n) ? n : NaN;
+  const v = bus?.terminal_state?.current_terminal_id ?? bus?.terminal_state?.currentTerminalId ?? bus?.current_terminal_id ?? bus?.currentTerminalId;
+  const n = Number(v); return Number.isFinite(n) ? n : NaN;
 }
 
-/* ✅ OFFLINE filter (use what you have in payload) */
 const OFFLINE_AFTER_SECONDS = 120;
-
 function isOnline(bus) {
-  // if backend already gives a boolean, use it
   if (typeof bus?.is_offline === "boolean") return !bus.is_offline;
-
-  // if backend gives a status string
   const s = String(bus?.device_status ?? bus?.status ?? "").toLowerCase();
-  if (s === "offline") return false;
-  if (s === "online") return true;
-
-  // fallback: use last_seen_at
+  if (s === "offline") return false; if (s === "online") return true;
   const last = bus?.last_seen_at ?? bus?.device_last_seen_at ?? bus?.terminal_state?.last_seen_at;
-  if (!last) return true; // if no data, don't auto-hide
+  if (!last) return true;
   const t = new Date(last).getTime();
   if (!Number.isFinite(t)) return true;
-
-  const ageSec = (Date.now() - t) / 1000;
-  return ageSec <= OFFLINE_AFTER_SECONDS;
+  return (Date.now() - t) / 1000 <= OFFLINE_AFTER_SECONDS;
 }
 
-/* data */
-const terminals = computed(() => (Array.isArray(rows.value) ? rows.value : []));
-
-/* categories */
+const terminals = computed(() => Array.isArray(rows.value) ? rows.value : []);
 const categories = computed(() => {
   const set = new Set();
-  for (const t of terminals.value) {
-    const c = clean(t.city);
-    if (c) set.add(c);
-  }
+  for (const t of terminals.value) { const c = clean(t.city); if (c) set.add(c); }
   return ["All", ...Array.from(set)];
 });
-
-/* filtered list */
 const filtered = computed(() => {
   const q = query.value.trim().toLowerCase();
-
   return terminals.value.filter((t) => {
     const city = clean(t.city);
     const catOk = activeCategory.value === "All" || city === activeCategory.value;
     if (!catOk) return false;
-
     if (!q) return true;
-    const name = clean(t.terminal_name).toLowerCase();
-    const cityLower = city.toLowerCase();
-    const idStr = String(t.terminal_id ?? "").toLowerCase();
-    return name.includes(q) || cityLower.includes(q) || idStr.includes(q);
+    return clean(t.terminal_name).toLowerCase().includes(q) || city.toLowerCase().includes(q) || String(t.terminal_id ?? "").includes(q);
   });
 });
-
-/* ✅ LIVE count map: terminal_id -> number of buses inside NOW */
 const liveInsideCountByTerminal = computed(() => {
   const map = new Map();
-
   for (const b of buses.value || []) {
-    if (!isOnline(b)) continue;
-    if (!isAtTerminal(b)) continue;
-
+    if (!isOnline(b) || !isAtTerminal(b)) continue;
     const tid = busCurrentTerminalId(b);
     if (!Number.isFinite(tid)) continue;
-
     map.set(tid, (map.get(tid) || 0) + 1);
   }
-
   return map;
 });
-
 function liveCountForTerminal(t) {
   const tid = Number(t?.terminal_id);
-  if (!Number.isFinite(tid)) return 0;
-  return liveInsideCountByTerminal.value.get(tid) || 0;
+  return Number.isFinite(tid) ? (liveInsideCountByTerminal.value.get(tid) || 0) : 0;
 }
 
-/* actions */
-function toggleTips() {
-  showTips.value = !showTips.value;
-}
-function resetFilters() {
-  query.value = "";
-  activeCategory.value = "All";
-  showTips.value = false;
-}
-async function reload() {
-  await fetchTerminals({ q: query.value || "" });
-  await fetchOnce(); // refresh live buses too
-}
-
-/* Google maps url */
+function toggleTips() { showTips.value = !showTips.value; }
+function resetFilters() { query.value = ""; activeCategory.value = "All"; showTips.value = false; }
+async function reload() { await fetchTerminals({ q: query.value || "" }); await fetchOnce(); }
 function mapsUrl(t) {
   if (hasCoords(t)) return `https://www.google.com/maps?q=${Number(t.lat)},${Number(t.lng)}`;
-  const text = encodeURIComponent(`${clean(t.terminal_name)}, ${clean(t.city)}`);
-  return `https://www.google.com/maps/search/?api=1&query=${text}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${clean(t.terminal_name)}, ${clean(t.city)}`)}`;
 }
-
 function goToDetails(t) {
-  const terminalId = Number(t?.terminal_id);
-  if (!Number.isFinite(terminalId)) return;
-
-  router.push({
-    name: "terminalDetails",
-    query: { terminalId: String(terminalId) },
-  });
+  const id = Number(t?.terminal_id);
+  if (!Number.isFinite(id)) return;
+  router.push({ name: "terminalDetails", query: { terminalId: String(id) } });
 }
-
 function goToTrack(t) {
-  const terminalId = Number(t?.terminal_id);
-  if (!Number.isFinite(terminalId)) return;
-
-  router.push({
-    name: "track",
-    query: { terminalId: String(terminalId) },
-  });
+  const id = Number(t?.terminal_id);
+  if (!Number.isFinite(id)) return;
+  router.push({ name: "track", query: { terminalId: String(id) } });
 }
 
-/* debounce server search */
 let qTimer = null;
-watch(
-  query,
-  (val) => {
-    clearTimeout(qTimer);
-    qTimer = setTimeout(() => fetchTerminals({ q: val || "" }), 350);
-  },
-  { flush: "post" }
-);
+watch(query, (val) => {
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => fetchTerminals({ q: val || "" }), 350);
+}, { flush: "post" });
 
-onMounted(async () => {
-  await fetchTerminals({ q: "" });
-  start();
-  await fetchOnce();
-});
-
+onMounted(async () => { await fetchTerminals({ q: "" }); start(); await fetchOnce(); });
 onUnmounted(() => stop());
 </script>
+
 <style scoped>
-/* keep your existing CSS (same as before) */
-.tm-page {
+/* ── Base ── */
+.tp-page {
   height: calc(100vh - var(--bottom-nav-h, 72px));
-  background: var(--light-bg, #f5f7fa);
-  overflow: hidden;
+  background: var(--light-bg, #F5F7FA);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
-.tm-top {
-  padding: 12px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: linear-gradient(to bottom, rgba(245, 247, 250, 0.95), rgba(245, 247, 250, 0.75));
-  backdrop-filter: blur(10px);
+
+/* ── Header ── */
+.tp-header {
+  padding: 12px 14px 12px;
+  background: linear-gradient(135deg, var(--primary-blue, #1E88E5) 0%, var(--accent-teal, #00BCD4) 100%);
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(30, 136, 229, 0.15);
 }
-.tm-header {
-  background: rgba(255, 255, 255, 0.92);
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  border-radius: 18px;
-  padding: 10px 12px;
+.tp-header-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.10);
+  margin-bottom: 12px;
 }
-.tm-title { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.tm-icon {
-  width: 40px; height: 40px; border-radius: 14px;
-  background: linear-gradient(135deg, var(--primary-blue, #1e88e5) 0%, var(--accent-teal, #00bfa6) 100%);
-  color: #fff; display: grid; place-items: center;
-}
-.tm-title-main { font-weight: 1000; font-size: 14px; color: var(--text-dark, #111827); line-height: 1.1; }
-.tm-title-sub { font-weight: 900; font-size: 12px; color: var(--text-gray, rgba(31, 41, 55, 0.60)); margin-top: 2px; }
-.tm-icon-btn {
-  width: 44px; height: 44px; border-radius: 14px;
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  background: #fff; color: var(--text-dark, #111827); cursor: pointer;
-}
-.tm-icon-btn:active { transform: scale(0.96); }
-
-.tm-search {
-  margin-top: 10px;
-  display: flex; align-items: center; gap: 10px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  border-radius: 16px;
-  padding: 10px 12px;
-  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.08);
-}
-.tm-search i { color: var(--text-gray, rgba(31, 41, 55, 0.60)); }
-.tm-search-input {
-  width: 100%; border: none; outline: none; background: transparent;
-  font-weight: 1000; font-size: 13px; color: var(--text-dark, #111827);
-}
-.tm-clear {
-  width: 34px; height: 34px; border-radius: 12px; border: none;
-  background: transparent; color: var(--text-gray, rgba(31, 41, 55, 0.60)); cursor: pointer;
-}
-.tm-clear:active { transform: scale(0.92); }
-
-.tm-chips {
-  margin-top: 10px;
-  display: flex; gap: 10px; align-items: center;
-  overflow-x: auto; padding-bottom: 2px;
-}
-.tm-chips::-webkit-scrollbar { display: none; }
-.tm-chip {
-  flex: 0 0 auto;
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  background: rgba(255, 255, 255, 0.92);
-  border-radius: 999px;
-  padding: 9px 12px;
-  font-weight: 1000;
-  font-size: 12px;
-  color: var(--text-dark, #111827);
-  cursor: pointer;
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.06);
-}
-.tm-chip:active { transform: scale(0.98); }
-.tm-chip.active {
-  border-color: rgba(0, 131, 143, 0.28);
-  color: var(--accent-teal, #00bfa6);
-  box-shadow: 0 14px 26px rgba(0, 131, 143, 0.12);
-}
-.tm-count {
-  margin-left: auto;
-  flex: 0 0 auto;
-  font-weight: 1000;
-  font-size: 12px;
-  color: #fff;
-  background: linear-gradient(135deg, var(--accent-teal, #00bfa6) 0%, #00838f 100%);
-  border-radius: 999px;
-  padding: 6px 10px;
-}
-
-.tm-tips {
-  margin-top: 10px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 2px dashed rgba(0, 131, 143, 0.22);
-  background: rgba(0, 131, 143, 0.06);
-  color: rgba(38, 43, 51, 0.75);
-  font-weight: 900;
-  font-size: 12px;
+.tp-header-title-group {
   display: flex;
-  gap: 10px;
-  align-items: flex-start;
+  align-items: center;
+  gap: 8px;
 }
-.tm-tips i { margin-top: 2px; color: rgba(0, 131, 143, 0.95); }
+.tp-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
+.tp-count-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--primary-blue, #1E88E5);
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.tp-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 15px;
+}
+.tp-icon-btn:active { opacity: 0.7; }
 
-.tm-banner{
-  margin-top: 10px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  background: rgba(255,255,255,0.92);
-  box-shadow: 0 10px 18px rgba(0,0,0,0.06);
-  display:flex;
-  align-items:center;
-  gap: 10px;
-  font-weight: 900;
+/* ── Search ── */
+.tp-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 20px;
+  padding: 8px 13px;
+  margin-bottom: 10px;
+}
+.tp-search-icon { color: rgba(255, 255, 255, 0.75); font-size: 13px; }
+.tp-search-input {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+.tp-search-input::placeholder { color: rgba(255, 255, 255, 0.65); }
+.tp-search-clear {
+  width: 24px; height: 24px;
+  border: none; background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 6px; font-size: 12px;
+}
+
+/* ── Chips ── */
+.tp-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.tp-chips::-webkit-scrollbar { display: none; }
+.tp-chip {
+  flex: 0 0 auto;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 5px 13px;
   font-size: 12px;
-  color: rgba(38, 43, 51, 0.75);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: all 0.14s ease;
+  white-space: nowrap;
 }
-.tm-banner--loading i { color: rgba(0, 131, 143, 0.95); }
-.tm-banner--error{
-  border-color: rgba(239, 68, 68, 0.25);
-  background: rgba(239, 68, 68, 0.06);
-  color: rgba(127, 29, 29, 0.9);
+.tp-chip:active { transform: scale(0.97); }
+.tp-chip.active {
+  background: #fff;
+  color: var(--primary-blue, #1E88E5);
+  border-color: #fff;
 }
-.tm-retry{
+
+/* ── Tips / notices ── */
+.tp-tips {
+  margin-top: 10px;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+.tp-tips i { color: #fff; margin-top: 1px; flex-shrink: 0; }
+
+.tp-notice {
+  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+.tp-notice--error {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fff;
+}
+.tp-retry {
   margin-left: auto;
-  border: 2px solid rgba(239, 68, 68, 0.25);
-  background: rgba(255,255,255,0.9);
-  color: rgba(127, 29, 29, 0.9);
-  border-radius: 12px;
-  padding: 8px 10px;
-  font-weight: 1000;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 700;
   cursor: pointer;
 }
-.tm-retry:active{ transform: scale(0.98); }
 
-.tm-list {
-  padding: 0 12px 12px;
-  overflow: auto;
+/* ── List ── */
+.tp-list {
+  flex: 1;
+  overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  padding: 12px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.tm-card {
+
+/* ── Card ── */
+.tp-card {
   width: 100%;
   text-align: left;
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  background: rgba(255, 255, 255, 0.95);
-  border-radius: 18px;
-  padding: 12px;
+  background: var(--bg-white, #fff);
+  border: 1.5px solid var(--border-light, #E5E7EB);
+  border-radius: 14px;
+  padding: 13px;
   cursor: pointer;
-  box-shadow: 0 14px 26px rgba(0, 0, 0, 0.10);
-  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
-  margin-top: 10px;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 1px 4px rgba(30, 136, 229, 0.05);
 }
-.tm-card:active { transform: scale(0.99); }
-.tm-card:hover { border-color: rgba(30, 136, 229, 0.22); }
+.tp-card:active { transform: scale(0.995); box-shadow: none; }
+.tp-card:hover { border-color: var(--primary-blue, #1E88E5); box-shadow: 0 4px 12px rgba(30, 136, 229, 0.1); }
 
-.tm-card-top {
+.tp-card-row {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
+  margin-bottom: 10px;
 }
-.tm-name { font-weight: 1000; font-size: 14px; color: rgba(38, 43, 51, 0.92); }
-.tm-sub { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
-.tm-pill {
+.tp-card-info { flex: 1; min-width: 0; }
+.tp-card-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark, #1F2937);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tp-card-city {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9CA3AF;
+}
+.tp-card-city i { font-size: 11px; color: var(--accent-teal, #00BCD4); }
+
+.tp-card-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.tp-buses-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #9CA3AF;
+  background: #F3F4F6;
+  border: 1px solid var(--border-light, #E5E7EB);
+  border-radius: 999px;
+  padding: 4px 9px;
+}
+.tp-buses-badge.active {
+  color: #166534;
+  background: rgba(22, 163, 74, 0.08);
+  border-color: rgba(22, 163, 74, 0.2);
+}
+.tp-chevron {
+  color: #D1D5DB;
+  font-size: 13px;
+}
+
+/* Hours */
+.tp-card-hours {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #9CA3AF;
+  padding: 8px 0;
+  border-top: 1px solid #F3F4F6;
+  border-bottom: 1px solid #F3F4F6;
+  margin-bottom: 10px;
+}
+.tp-card-hours i { font-size: 11px; color: var(--accent-teal, #00BCD4); }
+
+/* Card actions */
+.tp-card-actions {
+  display: flex;
+  gap: 7px;
+}
+.tp-action-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  border-radius: 999px;
-  padding: 6px 10px;
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  background: rgba(17, 24, 39, 0.02);
-  color: rgba(38, 43, 51, 0.78);
-  font-weight: 1000;
+  border: 1.5px solid var(--border-light, #E5E7EB);
+  background: #F5F7FA;
+  color: #6B7280;
+  border-radius: 9px;
+  padding: 8px 12px;
   font-size: 12px;
-}
-.tm-pill.soft { border-color: rgba(0, 131, 143, 0.18); background: rgba(0, 131, 143, 0.06); }
-.tm-arrow { color: rgba(156, 163, 175, 0.95); font-size: 18px; padding-top: 4px; }
-
-.tm-meta { margin-top: 10px; display: grid; gap: 8px; }
-.tm-meta-item {
-  display: flex; align-items: center; gap: 10px;
-  font-weight: 900; font-size: 12px;
-  color: rgba(38, 43, 51, 0.72);
-}
-.tm-meta-item i { color: rgba(0, 131, 143, 0.95); }
-.tm-meta-item.muted i { color: rgba(31, 41, 55, 0.55); }
-.tm-meta-item.muted { color: rgba(31, 41, 55, 0.60); }
-
-.tm-actions { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
-
-.tm-btn {
-  border: 2px solid var(--border-light, rgba(209, 213, 219, 0.75));
-  background: #fff;
-  color: rgba(38, 43, 51, 0.92);
-  border-radius: 14px;
-  padding: 10px 12px;
-  font-weight: 1000;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
+  transition: all 0.12s ease;
 }
-.tm-btn:active { transform: scale(0.98); }
-.tm-btn.primary {
-  border-color: rgba(0, 131, 143, 0.22);
-  background: rgba(0, 131, 143, 0.08);
-  color: rgba(0, 131, 143, 0.98);
+.tp-action-btn:active { transform: scale(0.97); }
+.tp-action-btn--primary {
+  background: linear-gradient(135deg, var(--primary-blue, #1E88E5) 0%, var(--accent-teal, #00BCD4) 100%);
+  color: #fff;
+  border-color: transparent;
 }
 
-.tm-empty {
-  margin-top: 12px;
-  border: 2px dashed var(--border-light, rgba(209, 213, 219, 0.75));
-  border-radius: 18px;
-  padding: 22px 14px;
+/* Empty */
+.tp-empty {
+  margin-top: 32px;
   text-align: center;
-  color: rgba(31, 41, 55, 0.60);
-  font-weight: 1000;
-  background: rgba(255, 255, 255, 0.7);
+  padding: 28px 16px;
 }
-.tm-empty i { font-size: 22px; margin-bottom: 10px; color: var(--accent-teal, #00bfa6); }
-.tm-empty-title { font-size: 14px; color: rgba(38, 43, 51, 0.92); }
-.tm-empty-sub { margin-top: 4px; font-size: 12px; font-weight: 900; }
-.tm-reset {
-  margin-top: 12px;
-  border: 2px solid rgba(0, 131, 143, 0.22);
-  background: rgba(0, 131, 143, 0.08);
-  color: rgba(0, 131, 143, 0.98);
+.tp-empty-icon {
+  width: 48px; height: 48px;
   border-radius: 14px;
-  padding: 10px 12px;
-  font-weight: 1000;
+  background: rgba(30, 136, 229, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  font-size: 18px;
+  color: var(--primary-blue, #1E88E5);
+}
+.tp-empty-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-dark, #1F2937);
+  margin-bottom: 4px;
+}
+.tp-empty-sub {
+  font-size: 12px;
+  color: #9CA3AF;
+  margin-bottom: 16px;
+}
+.tp-reset-btn {
+  border: 1.5px solid var(--border-light, #E5E7EB);
+  background: #fff;
+  color: var(--text-dark, #1F2937);
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
 }
-.tm-reset:active { transform: scale(0.98); }
+.tp-reset-btn:active { transform: scale(0.97); }
 
-.fade-enter-active, .fade-leave-active { transition: opacity 0.22s ease; }
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

@@ -1,8 +1,15 @@
-// src/services/api/terminalService.js
 import api from "./http";
 
 export function getAdminTerminals(params = {}) {
   return api.get("/admin/terminals", { params });
+}
+
+export function getTerminalById(id) {
+  return api.get(`/admin/terminals/${id}`);
+}
+
+export function getTerminalBusesById(id) {
+  return api.get(`/admin/terminals/${id}/buses`);
 }
 
 export function createTerminal(payload) {

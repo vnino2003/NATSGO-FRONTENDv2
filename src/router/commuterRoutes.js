@@ -1,0 +1,115 @@
+// src/router/commuterRoutes.js
+import CommuterLayout from "../layouts/CommutersLayout.vue";
+
+import HomePage from "../pages/commuters/HomePage.vue";
+import TrackBusPage from "../pages/commuters/TrackBusPage.vue";
+import SettingsPage from "../pages/commuters/SettingsPage.vue";
+import RoutesPage from "../pages/commuters/RoutesPage.vue";
+import TerminalPage from "../pages/commuters/TerminalPage.vue";
+import TerminalDetailsPage from "../pages/commuters/TerminalDetailsPage.vue";
+
+import SettingsHome from "../components/commuters/settings/SettingsHome.vue";
+import AccountSettings from "../components/commuters/settings/AccountSettings.vue";
+import SecuritySettings from "../components/commuters/settings/SecuritySettings.vue";
+import NotificationSettings from "../components/commuters/settings/NotificationSettings.vue";
+import LanguageSettings from "../components/commuters/settings/LanguageSettings.vue";
+import ThemeSettings from "../components/commuters/settings/ThemeSettings.vue";
+import FeedbackRate from "../components/commuters/settings/FeedbackRate.vue";
+import FeedbackSend from "../components/commuters/settings/FeedbackSend.vue";
+import AboutApp from "../components/commuters/settings/AboutApp.vue";
+import PrivacyPolicy from "../components/commuters/settings/PrivacyPolicy.vue";
+import TermsService from "../components/commuters/settings/TermsService.vue";
+
+export default [
+  {
+    path: "/",
+    component: CommuterLayout,
+    children: [
+      {
+        path: "",
+        redirect: "/home",
+      },
+      {
+        path: "home",
+        name: "home",
+        component: HomePage,
+      },
+      {
+        path: "track-bus",
+        name: "track",
+        component: TrackBusPage,
+      },
+      {
+        path: "routes",
+        name: "routes",
+        component: RoutesPage,
+      },
+      {
+        path: "terminal",
+        name: "terminal",
+        component: TerminalPage,
+      },
+      {
+        path: "terminal-details",
+        name: "terminalDetails",
+        component: TerminalDetailsPage,
+      },
+      {
+        path: "settings",
+        component: SettingsPage,
+        children: [
+          {
+            path: "",
+            name: "settings",
+            component: SettingsHome,
+          },
+          {
+            path: "account",
+            component: AccountSettings,
+          },
+          {
+            path: "security",
+            component: SecuritySettings,
+          },
+          {
+            path: "notifications",
+            component: NotificationSettings,
+          },
+          {
+            path: "language",
+            component: LanguageSettings,
+          },
+          {
+            path: "theme",
+            component: ThemeSettings,
+          },
+          {
+            path: "rate",
+            component: FeedbackRate,
+          },
+          {
+            path: "feedback",
+            component: FeedbackSend,
+          },
+          {
+            path: "about",
+            component: AboutApp,
+          },
+          {
+            path: "privacy",
+            component: PrivacyPolicy,
+          },
+          {
+            path: "terms",
+            component: TermsService,
+          },
+        ],
+      },
+    ],
+  },
+
+  {
+    path: "/:pathMatch(.*)*",
+    redirect: "/home",
+  },
+];

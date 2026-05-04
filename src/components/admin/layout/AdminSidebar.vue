@@ -22,7 +22,7 @@
 
       <div v-if="!collapsed" class="as-brand-text">
         <p class="as-name">NATSGO</p>
-        <p class="as-sub">Admin</p>
+        <p class="as-sub">System</p>
       </div>
     </div>
 
@@ -33,37 +33,38 @@
         <span v-if="!collapsed">Dashboard</span>
       </RouterLink>
 
+      <!-- Operations -->
       <p v-if="!collapsed" class="as-section">Operations</p>
 
-      <RouterLink class="as-item" to="/admin/live" title="Live Tracking">
+      <RouterLink class="as-item" to="/admin/live">
         <i class="fas fa-map-location-dot"></i>
         <span v-if="!collapsed">Live Tracking</span>
       </RouterLink>
 
-      <RouterLink class="as-item" to="/admin/buses" title="Buses">
+      <RouterLink class="as-item" to="/admin/buses">
         <i class="fas fa-bus"></i>
         <span v-if="!collapsed">Buses</span>
       </RouterLink>
 
-      <RouterLink class="as-item" to="/admin/routes" title="Routes">
+      <RouterLink class="as-item" to="/admin/routes">
         <i class="fas fa-route"></i>
         <span v-if="!collapsed">Routes</span>
       </RouterLink>
 
-      <RouterLink class="as-item" to="/admin/terminals" title="Terminals">
+      <RouterLink class="as-item" to="/admin/terminals">
         <i class="fas fa-warehouse"></i>
         <span v-if="!collapsed">Terminals</span>
       </RouterLink>
 
+      <!-- IoT -->
       <p v-if="!collapsed" class="as-section">IoT</p>
 
-      <!-- Parent item -->
       <button
         class="as-item as-item-btn"
         type="button"
         :class="{ activeish: isIoTRoute }"
-        @click="toggleIoT"
         :title="collapsed ? 'IoT' : ''"
+        @click="toggleIoT"
       >
         <i class="fas fa-microchip"></i>
 
@@ -76,48 +77,77 @@
         </span>
       </button>
 
-      <!-- Submenu -->
       <div class="as-submenu" :class="{ open: iotOpen && !collapsed }">
-        <RouterLink class="as-subitem" to="/admin/iot/devices" title="Devices">
+        <RouterLink class="as-subitem" to="/admin/iot/devices">
           <i class="fas fa-sim-card"></i>
           <span>Devices</span>
         </RouterLink>
 
-        <RouterLink
-          class="as-subitem"
-          to="/admin/iot/assignments"
-          title="Assignments"
-        >
+        <RouterLink class="as-subitem" to="/admin/iot/assignments">
           <i class="fas fa-link"></i>
           <span>Assignments</span>
         </RouterLink>
-
-        <!-- <RouterLink class="as-subitem" to="/admin/iot/health" title="Health Monitor">
-          <i class="fas fa-heart-pulse"></i>
-          <span>Health Monitor</span>
-        </RouterLink> -->
       </div>
 
+      <!-- Monitoring -->
       <p v-if="!collapsed" class="as-section">Monitoring</p>
 
-      <RouterLink class="as-item" to="/admin/alerts" title="Alerts & Logs">
+      <RouterLink class="as-item" to="/admin/alerts">
         <i class="fas fa-bell"></i>
         <span v-if="!collapsed">Alerts & Logs</span>
       </RouterLink>
 
-      <RouterLink class="as-item" to="/admin/analytics" title="Analytics">
+      <RouterLink class="as-item" to="/admin/analytics">
         <i class="fas fa-chart-pie"></i>
         <span v-if="!collapsed">Analytics</span>
       </RouterLink>
 
-      <p v-if="!collapsed" class="as-section">Admin</p>
+      <!-- System -->
+      <p v-if="!collapsed" class="as-section">System</p>
 
-      <RouterLink class="as-item" to="/admin/users" title="Users">
+      <!-- Users Dropdown -->
+      <button
+        class="as-item as-item-btn"
+        type="button"
+        :class="{ activeish: isUsersRoute }"
+        :title="collapsed ? 'Users' : ''"
+        @click="toggleUsers"
+      >
         <i class="fas fa-users"></i>
-        <span v-if="!collapsed">Users</span>
+
+        <span v-if="!collapsed" class="as-item-flex">
+          <span>Users</span>
+          <i
+            class="fas as-caret"
+            :class="usersOpen ? 'fa-chevron-up' : 'fa-chevron-down'"
+          ></i>
+        </span>
+      </button>
+
+      <div class="as-submenu" :class="{ open: usersOpen && !collapsed }">
+        <RouterLink class="as-subitem" to="/admin/users/commuters">
+          <i class="fas fa-user"></i>
+          <span>Commuters</span>
+        </RouterLink>
+
+        <RouterLink class="as-subitem" to="/admin/users/admins">
+          <i class="fas fa-user-shield"></i>
+          <span>Admins</span>
+        </RouterLink>
+      </div>
+
+   
+
+      <RouterLink class="as-item" to="/admin/fare-promos">
+        <i class="fas fa-money-bill-wave"></i>
+        <span v-if="!collapsed">Fare & Promos</span>
       </RouterLink>
 
-      <RouterLink class="as-item" to="/admin/settings" title="Settings">
+      <RouterLink class="as-item" to="/admin/announcements-alert">
+        <i class="fas fa-bullhorn"></i>
+        <span v-if="!collapsed">Announcements & Alert tickets</span>
+      </RouterLink>
+         <RouterLink class="as-item" to="/admin/settings">
         <i class="fas fa-gear"></i>
         <span v-if="!collapsed">Settings</span>
       </RouterLink>
@@ -129,37 +159,65 @@
       type="button"
       @click="$emit('update:collapsed', !collapsed)"
     >
-      <i class="fas" :class="collapsed ? 'fa-angles-right' : 'fa-angles-left'"></i>
+      <i
+        class="fas"
+        :class="collapsed ? 'fa-angles-right' : 'fa-angles-left'"
+      ></i>
       <span v-if="!collapsed">Collapse</span>
     </button>
   </aside>
 </template>
 
 <script setup>
-import { computed, ref, watchEffect } from "vue"
-import { useRoute } from "vue-router"
+import { computed, ref, watchEffect } from "vue";
+import { useRoute } from "vue-router";
 
 const props = defineProps({
-  collapsed: { type: Boolean, default: true }, // ✅ on mobile: treat as closed by default
-  drawer: { type: Boolean, default: false },   // ✅ enable overlay-drawer behavior
-})
-defineEmits(["update:collapsed"])
+  collapsed: { type: Boolean, default: true },
+  drawer: { type: Boolean, default: false },
+});
 
-const collapsed = computed(() => props.collapsed)
-const drawer = computed(() => props.drawer)
+defineEmits(["update:collapsed"]);
 
-const route = useRoute()
-const isIoTRoute = computed(() => String(route.path || "").startsWith("/admin/iot"))
+const collapsed = computed(() => props.collapsed);
+const drawer = computed(() => props.drawer);
 
-const iotOpen = ref(false)
+const route = useRoute();
+
+/* IoT dropdown */
+const isIoTRoute = computed(() =>
+  String(route.path || "").startsWith("/admin/iot")
+);
+
+const iotOpen = ref(false);
 
 function toggleIoT() {
-  if (collapsed.value) return
-  iotOpen.value = !iotOpen.value
+  if (collapsed.value) return;
+  iotOpen.value = !iotOpen.value;
 }
 
+/* Users dropdown */
+const isUsersRoute = computed(() =>
+  String(route.path || "").startsWith("/admin/users")
+);
+
+const usersOpen = ref(false);
+
+function toggleUsers() {
+  if (collapsed.value) return;
+  usersOpen.value = !usersOpen.value;
+}
+
+/* Auto-open dropdowns based on route */
 watchEffect(() => {
-  if (collapsed.value) return
-  if (isIoTRoute.value) iotOpen.value = true
-})
+  if (collapsed.value) return;
+
+  if (isIoTRoute.value) {
+    iotOpen.value = true;
+  }
+
+  if (isUsersRoute.value) {
+    usersOpen.value = true;
+  }
+});
 </script>

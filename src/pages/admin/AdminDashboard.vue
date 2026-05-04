@@ -1,727 +1,1768 @@
+<!-- src/pages/admin/AdminDashboard.vue -->
 <template>
-  <div class="admin-page">
-    <!-- HERO -->
+  <div class="dash">
 
-
-    <!-- KPIs -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <p class="kpi-label">Active Buses</p>
-          <span class="kpi-badge ok"><i class="fas fa-wifi"></i> Live</span>
+    <!-- ── Header ── -->
+    <div class="dash-header">
+      <div class="dash-header-left">
+        <div class="dash-title-row">
+          <h1 class="dash-title">Operations Dashboard</h1>
+          <span class="dash-live-badge">
+            <span class="dash-live-dot"></span>
+            Live
+          </span>
         </div>
-        <p class="kpi-value">{{ kpis.activeBuses }}</p>
-        <p class="kpi-sub">
-          <i class="fas fa-arrow-trend-up"></i>
-          +{{ kpis.busesDelta }} today
+        <p class="dash-subtitle">
+          Real-time overview of buses, devices, terminals, and system health
         </p>
-        <div class="kpi-icon"><i class="fas fa-bus"></i></div>
       </div>
 
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <p class="kpi-label">Active Commuters</p>
-          <span class="kpi-badge info"><i class="fas fa-users"></i> Online</span>
-        </div>
-        <p class="kpi-value">{{ kpis.activeCommuters }}</p>
-        <p class="kpi-sub">
-          <i class="fas fa-signal"></i>
-          Peak today: {{ kpis.peakCommuters }}
-        </p>
-        <div class="kpi-icon"><i class="fas fa-user-group"></i></div>
-      </div>
-
-      <div class="kpi-card">
-        <div class="kpi-top">
-          <p class="kpi-label">Terminals</p>
-          <span class="kpi-badge soft"><i class="fas fa-location-dot"></i> Listed</span>
-        </div>
-        <p class="kpi-value">{{ kpis.terminals }}</p>
-        <p class="kpi-sub">
+      <div class="dash-header-right">
+        <span class="dash-updated">
           <i class="fas fa-clock"></i>
-          {{ kpis.terminalsUpdated }} updated this week
-        </p>
-        <div class="kpi-icon"><i class="fas fa-building"></i></div>
-      </div>
+          {{ lastUpdatedLabel }}
+        </span>
 
-      <div class="kpi-card warn">
-        <div class="kpi-top">
-          <p class="kpi-label">Alerts Today</p>
-          <span class="kpi-badge warn"><i class="fas fa-triangle-exclamation"></i> Attention</span>
-        </div>
-        <p class="kpi-value">{{ kpis.alerts }}</p>
-        <p class="kpi-sub">
-          <i class="fas fa-eye"></i>
-          {{ kpis.pendingAlerts }} pending review
-        </p>
-        <div class="kpi-icon"><i class="fas fa-bell"></i></div>
+        <button class="dash-btn-ghost" @click="refresh" :disabled="loading">
+          <i class="fas fa-rotate" :class="{ 'fa-spin': loading }"></i>
+          Refresh
+        </button>
       </div>
     </div>
 
-    <!-- MAIN DASH LAYOUT -->
-    <div class="main-grid">
-      <!-- LEFT -->
-      <div class="left-col">
-        <!-- QUICK ACTIONS (compact) -->
-        <div class="panel">
-          <div class="panel-head row">
-            <div>
-              <p class="panel-title">Quick Actions</p>
-              <p class="panel-sub">Fast admin controls</p>
-            </div>
-            <span class="chip"><i class="fas fa-bolt"></i> Admin</span>
-          </div>
+    <!-- ── State ── -->
+    <div v-if="loading && !hasData" class="dash-state-row">
+      <i class="fas fa-circle-notch fa-spin"></i>
+      Loading dashboard data…
+    </div>
 
-          <div class="action-row">
-            <button class="quick" type="button" @click="go('/admin/buses')">
-              <i class="fas fa-bus"></i>
-              <span>Buses</span>
-            </button>
-            <button class="quick" type="button" @click="go('/admin/terminals')">
-              <i class="fas fa-building"></i>
-              <span>Terminals</span>
-            </button>
-            <button class="quick" type="button" @click="go('/admin/alerts')">
-              <i class="fas fa-bell"></i>
-              <span>Alerts</span>
-            </button>
-            <button class="quick" type="button" @click="go('/admin/settings')">
-              <i class="fas fa-gear"></i>
-              <span>Settings</span>
-            </button>
-          </div>
+    <div v-if="error" class="dash-state-row dash-state-error">
+      <i class="fas fa-triangle-exclamation"></i>
+      {{ error }}
+    </div>
+
+    <!-- ── KPI Cards ── -->
+    <div class="dash-kpi-grid">
+
+      <div class="dash-kpi" @click="go('/admin/buses')">
+        <div class="dash-kpi-top">
+          <span class="dash-kpi-label">Active Buses</span>
+          <span class="dash-tag dash-tag-green">
+            <i class="fas fa-wifi"></i>
+            Live
+          </span>
         </div>
 
-        <!-- OCCUPANCY OVER TIME (keep) -->
-        <div class="panel chart-panel">
-          <div class="panel-head row">
-            <div>
-              <p class="panel-title">Occupancy Over Time</p>
-              <p class="panel-sub">Hourly passenger load trend (demo)</p>
-            </div>
-            <span class="chip"><i class="fas fa-calendar-day"></i> Today</span>
-          </div>
+        <div class="dash-kpi-val">{{ stats.onlineBuses }}</div>
 
-          <div class="chart-wrap">
-            <svg class="chart" viewBox="0 0 800 220" preserveAspectRatio="none">
-              <g class="grid">
-                <line v-for="y in 5" :key="'gy'+y" :x1="40" :x2="780" :y1="y*36" :y2="y*36" />
-              </g>
-
-              <line class="axis" x1="40" y1="180" x2="780" y2="180" />
-              <line class="axis" x1="40" y1="24" x2="40" y2="180" />
-
-              <path class="line" :d="linePath" />
-
-              <g>
-                <circle
-                  v-for="(p, idx) in linePoints"
-                  :key="'pt'+idx"
-                  class="pt"
-                  :cx="p.x"
-                  :cy="p.y"
-                  r="5"
-                />
-              </g>
-
-              <g class="labels">
-                <text v-for="(t, i) in lineLabels" :key="'xl'+i" :x="t.x" y="205">
-                  {{ t.label }}
-                </text>
-              </g>
-            </svg>
-          </div>
+        <div class="dash-kpi-sub">
+          <i class="fas fa-bus"></i>
+          {{ stats.totalBuses }} total in fleet
         </div>
 
-        <!-- LIVE FLEET STATUS (replaces removed cards) -->
-     
+        <div class="dash-kpi-ico dash-ico-blue">
+          <i class="fas fa-bus"></i>
+        </div>
       </div>
 
-      <!-- RIGHT -->
-      <div class="right-col">
-        <!-- SYSTEM HEALTH (replaces Occupancy Distribution / Recent Activity) -->
- 
+      <div class="dash-kpi" @click="go('/admin/buses')">
+        <div class="dash-kpi-top">
+          <span class="dash-kpi-label">Passengers</span>
+          <span class="dash-tag dash-tag-blue">
+            <i class="fas fa-users"></i>
+            Current
+          </span>
+        </div>
 
-        <!-- ACTIVE ALERTS (keep) -->
-        <div class="panel">
-          <div class="panel-head row">
-            <div>
-              <p class="panel-title">Active Alerts</p>
-              <p class="panel-sub">Items needing attention</p>
+        <div class="dash-kpi-val">{{ stats.totalPassengers }}</div>
+
+        <div class="dash-kpi-sub">
+          <i class="fas fa-circle-info"></i>
+          Total passengers across all active buses
+        </div>
+
+        <div class="dash-kpi-ico dash-ico-teal">
+          <i class="fas fa-user-group"></i>
+        </div>
+      </div>
+
+      <div class="dash-kpi" @click="go('/admin/terminals')">
+        <div class="dash-kpi-top">
+          <span class="dash-kpi-label">Terminals</span>
+          <span class="dash-tag dash-tag-teal">
+            <i class="fas fa-location-dot"></i>
+            Listed
+          </span>
+        </div>
+
+        <div class="dash-kpi-val">{{ terminals.length }}</div>
+
+        <div class="dash-kpi-sub">
+          <i class="fas fa-building"></i>
+          {{ stats.busesAtTerminal }} bus(es) docked
+        </div>
+
+        <div class="dash-kpi-ico dash-ico-purple">
+          <i class="fas fa-building"></i>
+        </div>
+      </div>
+
+      <div class="dash-kpi dash-kpi--warn" @click="go('/admin/alerts')">
+        <div class="dash-kpi-top">
+          <span class="dash-kpi-label">Alerts</span>
+          <span class="dash-tag dash-tag-amber">
+            <i class="fas fa-triangle-exclamation"></i>
+            Attention
+          </span>
+        </div>
+
+        <div class="dash-kpi-val">{{ alerts.length }}</div>
+
+        <div class="dash-kpi-sub">
+          <i class="fas fa-eye"></i>
+          {{ stats.deviceWarnings }} device warning(s)
+        </div>
+
+        <div class="dash-kpi-ico dash-ico-amber">
+          <i class="fas fa-bell"></i>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── Main Grid ── -->
+    <div class="dash-main-grid">
+
+      <!-- ── LEFT COLUMN ── -->
+      <div class="dash-left">
+
+        <!-- Quick Actions -->
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <i class="fas fa-bolt dash-card-ico"></i>
+            <span>Quick Actions</span>
+            <span class="dash-chip">
+              <i class="fas fa-shield-halved"></i>
+              Admin
+            </span>
+          </div>
+
+          <div class="dash-quick-grid">
+            <button class="dash-quick" @click="go('/admin/buses')">
+              <div class="dash-quick-ico dash-ico-blue">
+                <i class="fas fa-bus"></i>
+              </div>
+              <span>Buses</span>
+            </button>
+
+            <button class="dash-quick" @click="go('/admin/iot/devices')">
+              <div class="dash-quick-ico dash-ico-teal">
+                <i class="fas fa-microchip"></i>
+              </div>
+              <span>Devices</span>
+            </button>
+
+            <button class="dash-quick" @click="go('/admin/terminals')">
+              <div class="dash-quick-ico dash-ico-purple">
+                <i class="fas fa-building"></i>
+              </div>
+              <span>Terminals</span>
+            </button>
+
+            <button class="dash-quick" @click="go('/admin/live')">
+              <div class="dash-quick-ico dash-ico-green">
+                <i class="fas fa-map-location-dot"></i>
+              </div>
+              <span>Live Track</span>
+            </button>
+
+            <button class="dash-quick" @click="go('/admin/fare-promos')">
+              <div class="dash-quick-ico dash-ico-amber">
+                <i class="fas fa-peso-sign"></i>
+              </div>
+              <span>Fare Matrix</span>
+            </button>
+
+            <button class="dash-quick" @click="go('/admin/announcements-alert')">
+              <div class="dash-quick-ico dash-ico-red">
+                <i class="fas fa-megaphone"></i>
+              </div>
+              <span>Announcements</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Route Load Summary -->
+      <!-- Route Load Summary -->
+<div class="dash-card">
+  <div class="dash-card-head">
+    <i class="fas fa-route dash-card-ico"></i>
+    <span>Route Load Summary</span>
+
+    <span class="dash-chip">
+      <i class="fas fa-users"></i>
+      Live Load
+    </span>
+  </div>
+
+  <div class="dash-route-summary-sub">
+    Current passenger load grouped by route. Passenger count is the total inside buses that are online or at terminal.
+  </div>
+
+  <div v-if="routeLoads.length === 0" class="dash-empty-inline">
+    <i class="fas fa-circle-info"></i>
+    No route load data yet
+  </div>
+
+  <div v-else class="dash-route-grid">
+    <div
+      v-for="route in routeLoads"
+      :key="route.key"
+      class="dash-route-card"
+    >
+      <div class="dash-route-top">
+        <div>
+          <div class="dash-route-name">
+            {{ route.from }}
+            <i class="fas fa-arrow-right"></i>
+            {{ route.to }}
+
+            <span
+              v-if="route.offlineBuses > 0"
+              class="dash-route-offline-badge"
+            >
+              Offline
+            </span>
+          </div>
+
+          <div class="dash-route-meta">
+            {{ route.totalBuses }} bus(es) assigned on this route
+          </div>
+        </div>
+
+        <span class="dash-tag" :class="route.statusClass">
+          {{ route.statusText }}
+        </span>
+      </div>
+
+      <div class="dash-route-stats">
+        <div class="dash-route-stat">
+          <div class="dash-route-stat-val">
+            {{ route.totalPassengers }}
+          </div>
+          <div class="dash-route-stat-lbl">
+            Total passengers
+          </div>
+        </div>
+
+        <div class="dash-route-stat">
+          <div class="dash-route-stat-val dash-val-teal">
+            {{ route.atTerminalBuses }}
+          </div>
+          <div class="dash-route-stat-lbl">
+            At terminal
+          </div>
+        </div>
+
+        <div class="dash-route-stat">
+          <div class="dash-route-stat-val dash-val-blue">
+            {{ route.enRouteBuses }}
+          </div>
+          <div class="dash-route-stat-lbl">
+            En route
+          </div>
+        </div>
+
+        <div class="dash-route-stat">
+          <div
+            class="dash-route-stat-val"
+            :class="route.offlineBuses > 0 ? 'dash-val-red' : ''"
+          >
+            {{ route.offlineBuses }}
+          </div>
+          <div class="dash-route-stat-lbl">
+            Offline
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-route-bottom-row">
+        <div>
+          <div class="dash-route-small-label">Average load</div>
+          <div class="dash-route-small-value">
+            {{ route.averagePassengers }} passengers / active bus
+          </div>
+        </div>
+
+        <div>
+          <div class="dash-route-small-label">Full / crowded</div>
+          <div
+            class="dash-route-small-value"
+            :class="route.fullBuses > 0 ? 'dash-val-amber' : ''"
+          >
+            {{ route.fullBuses }} bus(es)
+          </div>
+        </div>
+      </div>
+
+      <div class="dash-route-bar">
+        <div
+          class="dash-route-bar-fill"
+          :class="route.barClass"
+          :style="{ width: route.loadPercent + '%' }"
+        ></div>
+      </div>
+
+      <div class="dash-route-foot">
+        <span>{{ route.loadPercent }}% estimated load</span>
+
+        <button class="dash-link-btn" @click="go('/admin/live')">
+          Track route →
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+        <!-- Live Operations Panel -->
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <i class="fas fa-map-signs dash-card-ico"></i>
+            <span>Live Operations</span>
+
+            <button class="dash-head-btn" @click="go('/admin/live')">
+              <i class="fas fa-arrow-up-right-from-square"></i>
+              Track
+            </button>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">At Terminal</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-teal"
+                :style="{ width: pct(stats.busesAtTerminal, stats.totalBuses) + '%' }"
+              ></div>
             </div>
-            <button class="link-btn" type="button" @click="go('/admin/alerts')">
+            <span class="dash-tag dash-tag-teal">{{ stats.busesAtTerminal }}</span>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">En Route</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-blue"
+                :style="{ width: pct(stats.busesEnRoute, stats.totalBuses) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-blue">{{ stats.busesEnRoute }}</span>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">Offline / No Signal</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-red"
+                :style="{ width: pct(stats.offlineBuses, stats.totalBuses) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-red">{{ stats.offlineBuses }}</span>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">No Device</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-red"
+                :style="{ width: pct(stats.noDeviceBuses, stats.totalBuses) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-red">{{ stats.noDeviceBuses }}</span>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">Full / Crowded</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-amber"
+                :style="{ width: pct(stats.fullBuses, stats.totalBuses) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-amber">{{ stats.fullBuses }}</span>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ── RIGHT COLUMN ── -->
+      <div class="dash-right">
+
+        <!-- Device Health -->
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <i class="fas fa-microchip dash-card-ico"></i>
+            <span>Device Health</span>
+
+            <button class="dash-head-btn" @click="go('/admin/iot/devices')">
+              <i class="fas fa-arrow-up-right-from-square"></i>
+              Devices
+            </button>
+          </div>
+
+          <div class="dash-health-mini">
+            <div class="dash-mini-box">
+              <div class="dash-mini-val dash-val-green">{{ stats.activeDevices }}</div>
+              <div class="dash-mini-lbl">Online</div>
+            </div>
+
+            <div class="dash-mini-box">
+              <div class="dash-mini-val dash-val-red">{{ stats.offlineDevices }}</div>
+              <div class="dash-mini-lbl">Offline</div>
+            </div>
+
+            <div class="dash-mini-box">
+              <div class="dash-mini-val dash-val-amber">{{ stats.deviceWarnings }}</div>
+              <div class="dash-mini-lbl">Warnings</div>
+            </div>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">Online</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-green"
+                :style="{ width: pct(stats.activeDevices, stats.totalDevices) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-green">{{ stats.activeDevices }}</span>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">GPS Issues</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-amber"
+                :style="{ width: pct(stats.gpsIssues, stats.totalDevices) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-amber">{{ stats.gpsIssues }}</span>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">Sensor Faults</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-red"
+                :style="{ width: pct(stats.sensorWarnings, stats.totalDevices) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-red">{{ stats.sensorWarnings }}</span>
+          </div>
+
+          <div class="dash-bar-row">
+            <span class="dash-bar-lbl">Unassigned</span>
+            <div class="dash-bar-track">
+              <div
+                class="dash-bar-fill dash-bar-red"
+                :style="{ width: pct(stats.unassignedDevices, stats.totalDevices) + '%' }"
+              ></div>
+            </div>
+            <span class="dash-tag dash-tag-red">{{ stats.unassignedDevices }}</span>
+          </div>
+        </div>
+
+        <!-- Terminal Overview -->
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <i class="fas fa-building dash-card-ico"></i>
+            <span>Terminal Overview</span>
+
+            <button class="dash-head-btn" @click="go('/admin/terminals')">
+              <i class="fas fa-arrow-up-right-from-square"></i>
               Manage
             </button>
           </div>
 
-          <div class="alerts-mini">
-            <div v-for="a in activeAlerts" :key="a.id" class="alert-row">
-              <div class="alert-left">
-                <span class="alert-dot" :class="a.level"></span>
+          <div v-if="terminals.length === 0" class="dash-empty-inline">
+            <i class="fas fa-building"></i>
+            No terminals found
+          </div>
+
+          <div v-for="(term, index) in terminals" :key="term.id">
+            <div
+              class="dash-terminal-row dash-terminal-row--clickable"
+              @click="go(`/admin/terminals/${term.id}`)"
+            >
+              <div class="dash-terminal-left">
+                <div class="dash-terminal-ico">
+                  <i class="fas fa-building"></i>
+                </div>
+
                 <div>
-                  <p class="alert-title">{{ a.title }}</p>
-                  <p class="alert-desc">{{ a.desc }}</p>
-                  <small class="alert-time">{{ a.time }}</small>
+                  <div class="dash-terminal-name">{{ term.name }}</div>
+                  <div class="dash-terminal-sub">{{ term.city }}</div>
+                  <div class="dash-terminal-meta">
+                    <i class="fas fa-clock"></i>
+                    {{ term.operating_hours || "—" }}
+                  </div>
                 </div>
               </div>
 
-              <span class="badge" :class="a.level">
-                {{ a.level === 'warn' ? 'Urgent' : a.level === 'info' ? 'Info' : 'OK' }}
-              </span>
+              <div class="dash-terminal-right">
+                <span class="dash-tag dash-tag-teal">
+                  {{ term.buses_inside }} buses
+                </span>
+                <span class="dash-tag dash-tag-green" style="margin-top:4px">
+                  Active
+                </span>
+              </div>
             </div>
 
-            <div v-if="activeAlerts.length === 0" class="empty">
-              <i class="fas fa-check-circle"></i>
-              <p>No active alerts</p>
-              <small>All good right now.</small>
-            </div>
+            <div v-if="index !== terminals.length - 1" class="dash-divider"></div>
           </div>
         </div>
 
-        <!-- OPTIONAL: Small Admin Note (nice for “isang tingin”) -->
-        <div class="panel note">
-          <div class="note-row">
-            <div class="note-ico"><i class="fas fa-lightbulb"></i></div>
-            <div>
-              <p class="note-title">Admin Tip</p>
-              <p class="note-sub">
-                Prioritize <b>Urgent</b> alerts, then check buses with <b>High load</b> or stale updates.
-              </p>
+        <!-- Active Alerts -->
+        <div class="dash-card">
+          <div class="dash-card-head">
+            <i class="fas fa-bell dash-card-ico"></i>
+            <span>Active Alerts</span>
+
+            <button class="dash-head-btn" @click="go('/admin/alerts')">
+              Manage
+            </button>
+          </div>
+
+          <div v-if="alerts.length === 0" class="dash-empty-inline">
+            <i class="fas fa-circle-check" style="color:var(--green)"></i>
+            No active alerts — all systems normal
+          </div>
+
+          <div v-for="a in alerts.slice(0, 5)" :key="a.id" class="dash-alert-row">
+            <div class="dash-alert-ico" :class="`dash-alert-${a.severity}`">
+              <i class="fas" :class="a.icon"></i>
             </div>
+
+            <div class="dash-alert-body">
+              <div class="dash-alert-title">{{ a.title }}</div>
+              <div class="dash-alert-sub">{{ a.sub }}</div>
+              <small class="dash-alert-time">{{ timeAgo(a.time_at) }}</small>
+            </div>
+
+            <span class="dash-tag" :class="severityTagClass(a.severity)">
+              {{ a.severity === "critical" ? "Urgent" : a.severity === "warning" ? "Warning" : "Info" }}
+            </span>
           </div>
         </div>
+
+   
       </div>
     </div>
 
-    <div class="bottom-space"></div>
+    <!-- ── Bottom Row: Commuter Info + Activity ── -->
+    <div class="dash-bottom-grid">
+
+      <!-- Commuter Info -->
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <i class="fas fa-newspaper dash-card-ico"></i>
+          <span>Commuter Information</span>
+        </div>
+
+        <div class="dash-info-tiles">
+          <div class="dash-info-tile">
+            <div class="dash-info-tile-val">
+              ₱{{ fareInfo.baseFare }}
+            </div>
+            <div class="dash-info-tile-lbl">Base Fare</div>
+            <button class="dash-link-btn" @click="go('/admin/fare-promos')">
+              Manage Fares →
+            </button>
+          </div>
+
+          <div class="dash-info-tile">
+            <div class="dash-info-tile-val dash-val-green">
+              {{ fareInfo.activePromotions }}
+            </div>
+            <div class="dash-info-tile-lbl">Promotions</div>
+            <button class="dash-link-btn" @click="go('/admin/fare-promos')">
+              View →
+            </button>
+          </div>
+
+          <div class="dash-info-tile">
+            <div class="dash-info-tile-val">
+              {{ commuterInfo.announcements }}
+            </div>
+            <div class="dash-info-tile-lbl">Announcements</div>
+            <button class="dash-link-btn" @click="go('/admin/announcements-alert')">
+              Manage →
+            </button>
+          </div>
+
+          <div class="dash-info-tile">
+            <div
+              class="dash-info-tile-val"
+              :class="commuterInfo.alertTickers > 0 ? 'dash-val-amber' : ''"
+            >
+              {{ commuterInfo.alertTickers }}
+            </div>
+            <div class="dash-info-tile-lbl">Alert Tickers</div>
+            <button class="dash-link-btn" @click="go('/admin/announcements-alert')">
+              Manage →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="dash-card">
+        <div class="dash-card-head">
+          <i class="fas fa-clock-rotate-left dash-card-ico"></i>
+          <span>Recent Activity</span>
+        </div>
+
+        <div v-if="activity.length === 0" class="dash-empty-inline">
+          <i class="fas fa-circle-info"></i>
+          No recent activity yet
+        </div>
+
+        <div v-for="ev in activity" :key="ev.id" class="dash-act-row">
+          <div class="dash-act-ico" :class="`dash-act-${ev.color}`">
+            <i class="fas" :class="ev.icon"></i>
+          </div>
+
+          <div class="dash-act-body">
+            <div class="dash-act-lbl">{{ ev.label }}</div>
+            <div class="dash-act-sub">{{ ev.sub }}</div>
+          </div>
+
+          <span class="dash-act-time">{{ timeAgo(ev.time_at) }}</span>
+        </div>
+      </div>
+
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { computed, ref } from "vue"
-import { useRouter } from "vue-router"
+import { computed, onBeforeUnmount, onMounted } from "vue";
+import { useRouter } from "vue-router";
+import { useDashboard } from "@/composables/useDashboard";
 
-const router = useRouter()
-function go(path) { router.push(path) }
+const router = useRouter();
 
-const now = ref(new Date())
-const lastUpdated = computed(() => now.value.toLocaleString())
+const dashboard = useDashboard();
 
-const kpis = ref({
-  activeBuses: 12,
-  busesDelta: 2,
-  activeCommuters: 86,
-  peakCommuters: 140,
-  terminals: 4,
-  terminalsUpdated: 2,
-  alerts: 3,
-  pendingAlerts: 1,
-})
+const {
+  stats,
+  terminals,
+  alerts,
+  activity,
+  fareInfo,
+  commuterInfo,
+  generatedAt,
+  loading,
+  error,
+  fetchDashboard,
+} = dashboard;
 
-const ops = ref({
-  onlineNow: 86,
-  trackingBuses: 12,
-  reports: 5,
-})
+const hasData = computed(() => {
+  return (
+    stats.value.totalBuses > 0 ||
+    stats.value.totalDevices > 0 ||
+    terminals.value.length > 0
+  );
+});
 
-/* Occupancy Over Time (demo) */
-const occupancyHourly = ref([
-  { h: "06:00", v: 12 },
-  { h: "08:00", v: 40 },
-  { h: "10:00", v: 62 },
-  { h: "12:00", v: 70 },
-  { h: "14:00", v: 74 },
-  { h: "16:00", v: 66 },
-  { h: "18:00", v: 52 },
-  { h: "20:00", v: 22 },
-])
+const lastUpdatedLabel = computed(() => {
+  if (!generatedAt.value) return "Not yet refreshed";
 
-/* Fleet list (demo) */
-const fleet = ref([
-  { id: "01", route: "Main Route", status: "Active", load: 48, lastStop: "Stop 5 - City Hall", updated: "2 mins ago" },
-  { id: "03", route: "Main Route", status: "Needs Check", load: 72, lastStop: "Terminal B", updated: "6 mins ago" },
-  { id: "06", route: "Main Route", status: "Active", load: 33, lastStop: "Stop 9 - Market", updated: "1 min ago" },
-  { id: "08", route: "Main Route", status: "Inactive", load: 0, lastStop: "Depot", updated: "1 hr ago" },
-])
+  const dt = new Date(generatedAt.value);
+  if (Number.isNaN(dt.getTime())) return "Not yet refreshed";
 
-/* Alerts (demo) */
-const activeAlerts = ref([
-  { id: 1, level: "warn", title: "Bus #03", desc: "GPS unstable / low signal", time: "5 mins ago" },
-  { id: 2, level: "info", title: "Terminal B", desc: "Crowd higher than usual", time: "25 mins ago" },
-  { id: 3, level: "ok", title: "Main Route", desc: "Normal travel time", time: "1 hr ago" },
-])
+  const s = Math.floor((Date.now() - dt.getTime()) / 1000);
 
-/* Simple SVG Line Chart */
-const linePoints = computed(() => {
-  const left = 40
-  const top = 24
-  const bottom = 180
-  const right = 780
-  const w = right - left
-  const h = bottom - top
+  if (s < 10) return "Updated just now";
+  if (s < 60) return `Updated ${s}s ago`;
+  if (s < 3600) return `Updated ${Math.floor(s / 60)}m ago`;
+  return `Updated ${Math.floor(s / 3600)}h ago`;
+});
 
-  const maxV = Math.max(...occupancyHourly.value.map(x => x.v), 1)
-  const n = occupancyHourly.value.length
+const routeLoads = computed(() => {
+  const raw = dashboard.routeLoadSummary?.value || [];
 
-  return occupancyHourly.value.map((d, i) => {
-    const x = left + (w * i) / (n - 1)
-    const y = bottom - (h * d.v) / maxV
-    return { x, y }
-  })
-})
+  return raw.map((r, index) => {
+    const from = r.from || r.from_location || r.origin || "Unknown";
+    const to = r.to || r.to_location || r.destination || "Unknown";
 
-const linePath = computed(() => {
-  const pts = linePoints.value
-  if (!pts.length) return ""
-  return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ")
-})
+    const totalBuses = Number(r.totalBuses ?? r.total_buses ?? r.bus_count ?? 0);
+    const atTerminalBuses = Number(r.atTerminalBuses ?? r.at_terminal_buses ?? 0);
+    const enRouteBuses = Number(r.enRouteBuses ?? r.en_route_buses ?? 0);
+    const offlineBuses = Number(r.offlineBuses ?? r.offline_buses ?? 0);
 
-const lineLabels = computed(() => {
-  const pts = linePoints.value
-  return occupancyHourly.value.map((d, i) => ({ label: d.h, x: pts[i]?.x || 40 }))
-})
+    const activeBuses = atTerminalBuses + enRouteBuses;
 
-function refresh() {
-  now.value = new Date()
-  // later: fetch actual data from API here
+    const totalPassengers = Number(
+      r.totalPassengers ?? r.total_passengers ?? r.passengers ?? 0
+    );
+
+    const fullBuses = Number(
+      r.fullBuses ?? r.full_buses ?? r.crowded_buses ?? 0
+    );
+
+    const averagePassengers =
+      activeBuses > 0
+        ? Math.round((totalPassengers / activeBuses) * 10) / 10
+        : 0;
+
+    const capacity = Number(
+      r.capacity ?? r.total_capacity ?? activeBuses * 30
+    );
+
+    const loadPercent =
+      capacity > 0
+        ? Math.min(100, Math.round((totalPassengers / capacity) * 100))
+        : 0;
+
+    let statusText = "Normal";
+    let statusClass = "dash-tag-green";
+    let barClass = "dash-bar-green";
+
+    if (offlineBuses > 0) {
+      statusText = "Needs Check";
+      statusClass = "dash-tag-red";
+      barClass = "dash-bar-red";
+    } else if (loadPercent >= 85 || fullBuses > 0) {
+      statusText = "Crowded";
+      statusClass = "dash-tag-amber";
+      barClass = "dash-bar-amber";
+    }
+
+    if (loadPercent >= 100) {
+      statusText = "Full";
+      statusClass = "dash-tag-red";
+      barClass = "dash-bar-red";
+    }
+
+    return {
+      key: r.key || `${from}-${to}-${index}`,
+      from,
+      to,
+      totalBuses,
+      atTerminalBuses,
+      enRouteBuses,
+      offlineBuses,
+      activeBuses,
+      totalPassengers,
+      averagePassengers,
+      fullBuses,
+      loadPercent,
+      statusText,
+      statusClass,
+      barClass,
+    };
+  });
+});
+
+function pct(n, total) {
+  const a = Number(n) || 0;
+  const b = Number(total) || 0;
+
+  if (b <= 0) return 0;
+  return Math.min(100, Math.round((a / b) * 100));
 }
 
-function pillClass(status) {
-  if (status === "Active") return "pill-green"
-  if (status === "Inactive") return "pill-red"
-  return "pill-yellow"
+function timeAgo(dateLike) {
+  if (!dateLike) return "—";
+
+  const dt = new Date(dateLike);
+  if (Number.isNaN(dt.getTime())) return "—";
+
+  const s = Math.floor((Date.now() - dt.getTime()) / 1000);
+
+  if (s < 10) return "just now";
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }
+
+function severityTagClass(s) {
+  if (s === "critical") return "dash-tag-red";
+  if (s === "warning") return "dash-tag-amber";
+  return "dash-tag-blue";
+}
+
+function go(path) {
+  router.push(path);
+}
+
+async function refresh() {
+  try {
+    await fetchDashboard();
+  } catch {
+    // error is handled by composable
+  }
+}
+
+let poll = null;
+
+onMounted(async () => {
+  await refresh();
+  poll = setInterval(refresh, 6000);
+});
+
+onBeforeUnmount(() => {
+  if (poll) clearInterval(poll);
+});
 </script>
 
 <style scoped>
-.admin-page{ padding: 16px; }
+/* ─── Tokens ─────────────────────────────── */
+.dash {
+  --green:   #10b981;
+  --amber:   #f59e0b;
+  --red:     #ef4444;
+  --blue:    #3b82f6;
+  --teal:    #14b8a6;
+  --purple:  #8b5cf6;
+  --border:  rgba(226,232,240,1);
+  --bg:      #f8fafc;
+  --card:    #ffffff;
+  --text:    #0f172a;
+  --muted:   #64748b;
+  --radius:  14px;
 
-/* ===== HERO ===== */
-.dash-hero{
-  border-radius: 18px;
-  padding: 16px;
-  background:
-    radial-gradient(circle at 18% 12%, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 55%),
-    linear-gradient(135deg, rgba(30,136,229,0.92), rgba(0,188,212,0.72));
-  color:#fff;
-  display:flex;
-  justify-content:space-between;
-  align-items:flex-start;
-  gap: 12px;
-  box-shadow: 0 14px 28px rgba(0,188,212,0.14);
-  border: 1px solid rgba(255,255,255,0.18);
-  margin-bottom: 16px;
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  padding: 24px;
+  min-height: 100vh;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-.dash-hero-left{ display:flex; gap: 12px; align-items:flex-start; }
-.dash-hero-icon{
-  width: 48px; height: 48px; border-radius: 14px;
-  background: rgba(255,255,255,0.16);
-  border: 1px solid rgba(255,255,255,0.22);
-  display:flex; align-items:center; justify-content:center;
-  flex-shrink:0;
-}
-.dash-hero-title{ margin:0; font-weight: 900; font-size: 16px; }
-.dash-hero-sub{ margin:6px 0 0; font-weight: 700; font-size: 12px; opacity:.92; line-height: 1.35; }
-.dash-hero-meta{
-  margin-top: 10px;
-  display:flex;
+
+/* ─── Header ─────────────────────────────── */
+.dash-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   flex-wrap: wrap;
-  gap: 8px;
 }
-.meta-pill{
-  display:inline-flex;
-  align-items:center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.16);
-  border: 1px solid rgba(255,255,255,0.22);
-  font-size: 12px;
-  font-weight: 800;
-}
-.meta-pill.soft{ background: rgba(255,255,255,0.12); }
-.dot{ width: 10px; height: 10px; border-radius: 999px; background: rgba(209,213,219,1); }
-.dot.ok{ background: rgba(16,185,129,1); }
 
-.hero-btn{
-  border:none;
-  border-radius: 12px;
-  padding: 10px 12px;
+.dash-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.dash-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dash-title {
+  font-size: 24px;
   font-weight: 900;
-  cursor:pointer;
-  color: rgba(38,43,51,0.92);
-  background: rgba(255,255,255,0.88);
-  display:flex; align-items:center; gap: 8px;
-  flex-shrink:0;
+  letter-spacing: -0.8px;
+  margin: 0;
 }
-.hero-btn:active{ transform: scale(.98); }
 
-/* ===== KPI ===== */
-.kpi-grid{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
+.dash-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.dash-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(16,185,129,.1);
+  color: var(--green);
+}
+
+.dash-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: .4; transform: scale(.8); }
+}
+
+.dash-updated {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ─── State ──────────────────────────────── */
+.dash-state-row {
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-state-error {
+  color: var(--red);
+}
+
+/* ─── KPI Grid ───────────────────────────── */
+.dash-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
+}
+
+.dash-kpi {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s, transform .15s;
+}
+
+.dash-kpi:hover {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(0,0,0,.05);
+  transform: translateY(-1px);
+}
+
+.dash-kpi--warn {
+  border-color: rgba(245,158,11,.25);
+  background: linear-gradient(160deg, rgba(245,158,11,.04), #fff 60%);
+}
+
+.dash-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 12px;
 }
-.kpi-card{
-  background: var(--bg-white);
-  border: 2px solid var(--border-light);
-  border-radius: 16px;
-  padding: 14px;
-  position: relative;
-  overflow:hidden;
-  box-shadow: 0 10px 22px rgba(0,0,0,0.04);
-}
-.kpi-card.warn{
-  border-color: rgba(255,152,0,0.25);
-  background: linear-gradient(0deg, rgba(255,152,0,0.06), rgba(255,152,0,0.02));
-}
-.kpi-top{ display:flex; justify-content:space-between; align-items:center; gap: 10px; }
-.kpi-label{
-  margin:0;
-  font-size: 12px;
-  font-weight: 900;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  color: rgba(38,43,51,0.62);
-}
-.kpi-badge{
-  display:inline-flex;
-  align-items:center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
+
+.dash-kpi-label {
   font-size: 11px;
-  font-weight: 900;
-  border: 1px solid transparent;
-  background: rgba(209,213,219,0.22);
-  color: rgba(38,43,51,0.8);
-}
-.kpi-badge.ok{ background: rgba(16,185,129,0.12); border-color: rgba(16,185,129,0.25); color: var(--success-green); }
-.kpi-badge.info{ background: rgba(30,136,229,0.12); border-color: rgba(30,136,229,0.25); color: var(--primary-blue); }
-.kpi-badge.warn{ background: rgba(255,152,0,0.12); border-color: rgba(255,152,0,0.25); color: var(--warning-orange); }
-.kpi-badge.soft{ background: rgba(0,188,212,0.10); border-color: rgba(0,188,212,0.20); color: var(--accent-teal); }
-
-.kpi-value{ margin: 12px 0 0; font-size: 30px; font-weight: 900; color: var(--text-dark); }
-.kpi-sub{
-  margin: 8px 0 0;
-  font-size: 12px;
   font-weight: 800;
-  color: rgba(38,43,51,0.72);
-  display:flex;
-  align-items:center;
-  gap: 8px;
-}
-.kpi-icon{
-  position:absolute;
-  right: 12px;
-  bottom: 10px;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  color: rgba(38,43,51,0.12);
-  font-size: 26px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .5px;
 }
 
-/* ===== Main layout ===== */
-.main-grid{
-  margin-top: 12px;
-  display:grid;
-  grid-template-columns: 1.45fr 0.75fr;
-  gap: 12px;
-}
-.left-col, .right-col{
-  display:flex;
-  flex-direction:column;
-  gap: 12px;
+.dash-kpi-val {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  line-height: 1;
 }
 
-.panel{
-  background: var(--bg-white);
-  border: 2px solid var(--border-light);
-  border-radius: 18px;
-  padding: 14px;
-  box-shadow: 0 10px 22px rgba(0,0,0,0.04);
-}
-.panel.note{
-  border-style: dashed;
-  border-color: rgba(0,188,212,0.35);
-  background: rgba(0,188,212,0.04);
+.dash-kpi-sub {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.panel-head{ margin-bottom: 12px; }
-.panel-head.row{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap: 10px;
-}
-.panel-title{ margin:0; font-weight: 900; color: var(--text-dark); font-size: 14px; }
-.panel-sub{ margin:6px 0 0; font-weight: 700; color: rgba(38,43,51,0.68); font-size: 12px; }
-
-.link-btn{
-  border: 2px solid var(--border-light);
-  background: #fff;
+.dash-kpi-ico {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  width: 40px;
+  height: 40px;
   border-radius: 12px;
-  padding: 8px 10px;
-  font-weight: 900;
-  cursor:pointer;
-  color: rgba(38,43,51,0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  opacity: .18;
 }
-.link-btn:hover{ border-color: rgba(0,188,212,0.35); background: rgba(0,188,212,0.06); }
-.link-btn:active{ transform: scale(.98); }
 
-.chip{
-  display:inline-flex;
-  align-items:center;
+/* ─── Main Grid ──────────────────────────── */
+.dash-main-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+.dash-left,
+.dash-right {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ─── Cards ──────────────────────────────── */
+.dash-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.dash-card--tip {
+  border-style: dashed;
+  border-color: rgba(20,184,166,.3);
+  background: rgba(20,184,166,.03);
+}
+
+.dash-card-head {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  padding: 6px 10px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+  font-weight: 700;
+  background: #f8fafc;
+}
+
+.dash-card-ico {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dash-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
   border-radius: 999px;
   font-size: 11px;
-  font-weight: 900;
-  border: 1px solid rgba(0,188,212,0.25);
-  background: rgba(0,188,212,0.08);
-  color: var(--accent-teal);
+  font-weight: 700;
+  background: rgba(20,184,166,.08);
+  border: 1px solid rgba(20,184,166,.2);
+  color: var(--teal);
+  margin-left: auto;
 }
 
-/* Quick actions (compact row) */
-.action-row{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
+.dash-head-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+
+.dash-head-btn:hover {
+  color: var(--text);
+  border-color: #94a3b8;
+}
+
+/* ─── Quick Actions ──────────────────────── */
+.dash-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  padding: 14px;
+}
+
+.dash-quick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: 14px 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dash-quick:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.dash-quick-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+}
+/* ─── Route Load Summary ─────────────────── */
+.dash-route-summary-sub {
+  padding: 12px 16px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.dash-route-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding: 14px;
+}
+
+.dash-route-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  transition: border-color .15s, background .15s;
+}
+
+.dash-route-card:hover {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+}
+
+.dash-route-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
   gap: 10px;
 }
-.quick{
-  border: 2px solid var(--border-light);
+
+.dash-route-name {
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.dash-route-name i {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.dash-route-offline-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(239,68,68,.08);
+  color: #991b1b;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.dash-route-meta {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.dash-route-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.dash-route-stat {
   background: #fff;
-  border-radius: 14px;
-  padding: 10px 12px;
-  font-weight: 900;
-  color: rgba(38,43,51,0.85);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap: 10px;
-  cursor:pointer;
-}
-.quick i{ color: var(--accent-teal); }
-.quick:hover{ border-color: rgba(0,188,212,0.35); background: rgba(0,188,212,0.05); }
-.quick:active{ transform: scale(.99); }
-
-/* Chart */
-.chart-panel .panel-head{ margin-bottom: 8px; }
-.chart-wrap{
-  border: 2px solid var(--border-light);
-  border-radius: 16px;
-  background: rgba(245,247,250,0.55);
+  border: 1px solid rgba(226,232,240,.85);
+  border-radius: 10px;
   padding: 10px;
-  overflow:hidden;
 }
-.chart{ width: 100%; height: 220px; }
-.grid line{ stroke: rgba(209,213,219,0.55); stroke-width: 1; }
-.axis{ stroke: rgba(209,213,219,0.85); stroke-width: 2; }
-.line{
-  fill: none;
-  stroke: rgba(0,188,212,0.95);
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 6px 10px rgba(0,188,212,0.18));
+
+.dash-route-stat-val {
+  font-size: 19px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
 }
-.pt{ fill: #fff; stroke: rgba(30,136,229,0.95); stroke-width: 3; }
-.labels text{
+
+.dash-route-stat-lbl {
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1.2;
+}
+
+.dash-route-bottom-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid rgba(226,232,240,.85);
+  border-radius: 10px;
+}
+
+.dash-route-small-label {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+
+.dash-route-small-value {
+  margin-top: 3px;
   font-size: 12px;
   font-weight: 800;
-  fill: rgba(38,43,51,0.70);
-  text-anchor: middle;
+  color: var(--text);
 }
 
-/* Fleet list */
-.fleet{ display:flex; flex-direction:column; gap: 10px; }
-.fleet-row{
-  border: 2px solid var(--border-light);
-  background:#fff;
-  border-radius: 16px;
+.dash-route-bar {
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+  margin-top: 12px;
+}
+
+.dash-route-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .5s ease;
+}
+
+.dash-route-foot {
+  margin-top: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.dash-val-blue {
+  color: var(--blue);
+}
+
+.dash-val-teal {
+  color: var(--teal);
+}
+/* ─── Bar rows ───────────────────────────── */
+.dash-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(226,232,240,.5);
+}
+
+.dash-bar-row:last-child {
+  border-bottom: none;
+}
+
+.dash-bar-lbl {
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 600;
+  width: 130px;
+  flex-shrink: 0;
+}
+
+.dash-bar-track {
+  flex: 1;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.dash-bar-fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .5s ease;
+}
+
+.dash-bar-green { background: var(--green); }
+.dash-bar-red   { background: var(--red); }
+.dash-bar-amber { background: var(--amber); }
+.dash-bar-blue  { background: var(--blue); }
+.dash-bar-teal  { background: var(--teal); }
+
+/* ─── Tags ───────────────────────────────── */
+.dash-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dash-tag-green { background: rgba(16,185,129,.1); color: #065f46; }
+.dash-tag-red { background: rgba(239,68,68,.08); color: #991b1b; }
+.dash-tag-amber { background: rgba(245,158,11,.1); color: #78350f; }
+.dash-tag-blue { background: rgba(59,130,246,.1); color: #1e3a8a; }
+.dash-tag-teal { background: rgba(20,184,166,.1); color: #0f766e; }
+
+/* ─── Icon colors ────────────────────────── */
+.dash-ico-blue { background: rgba(59,130,246,.08); color: var(--blue); }
+.dash-ico-green { background: rgba(16,185,129,.08); color: var(--green); }
+.dash-ico-red { background: rgba(239,68,68,.08); color: var(--red); }
+.dash-ico-amber { background: rgba(245,158,11,.08); color: var(--amber); }
+.dash-ico-teal { background: rgba(20,184,166,.08); color: var(--teal); }
+.dash-ico-purple { background: rgba(139,92,246,.08); color: var(--purple); }
+
+/* ─── Value colors ───────────────────────── */
+.dash-val-green { color: var(--green); }
+.dash-val-red { color: var(--red); }
+.dash-val-amber { color: var(--amber); }
+
+/* ─── Health mini ────────────────────────── */
+.dash-health-mini {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dash-mini-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
   padding: 12px;
-  display:flex;
-  justify-content:space-between;
+  text-align: center;
+}
+
+.dash-mini-val {
+  font-size: 22px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.dash-mini-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .4px;
+  margin-top: 4px;
+}
+
+/* ─── Terminal rows ──────────────────────── */
+.dash-terminal-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+}
+
+.dash-terminal-row--clickable {
+  cursor: pointer;
+  transition: background .12s;
+}
+
+.dash-terminal-row--clickable:hover {
+  background: #f8fafc;
+}
+
+.dash-terminal-left {
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
 }
-.fleet-left{ display:flex; gap: 12px; align-items:flex-start; }
-.fleet-badge{
-  width: 44px; height: 44px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--primary-blue), var(--accent-teal));
-  color:#fff;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex-shrink:0;
+
+.dash-terminal-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(139,92,246,.08);
+  color: var(--purple);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
 }
-.fleet-title{ margin:0; font-weight: 900; font-size: 13px; color: var(--text-dark); }
-.tiny{ font-weight: 800; color: rgba(38,43,51,0.62); }
-.fleet-sub{
-  margin: 6px 0 0;
+
+.dash-terminal-name {
+  font-size: 13px;
   font-weight: 700;
+}
+
+.dash-terminal-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.dash-terminal-meta {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.dash-terminal-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.dash-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0 16px;
+}
+
+/* ─── Alerts ─────────────────────────────── */
+.dash-alert-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 16px;
+  border-bottom: 1px solid rgba(226,232,240,.5);
+  transition: background .12s;
+}
+
+.dash-alert-row:last-child {
+  border-bottom: none;
+}
+
+.dash-alert-row:hover {
+  background: #f8fafc;
+}
+
+.dash-alert-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.dash-alert-critical { background: rgba(239,68,68,.08); color: var(--red); }
+.dash-alert-warning { background: rgba(245,158,11,.1); color: var(--amber); }
+.dash-alert-info { background: rgba(59,130,246,.1); color: var(--blue); }
+
+.dash-alert-body {
+  flex: 1;
+}
+
+.dash-alert-title {
   font-size: 12px;
-  color: rgba(38,43,51,0.72);
-  display:flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items:center;
+  font-weight: 700;
 }
-.sep{ color: rgba(38,43,51,0.35); }
 
-.fleet-right{
-  display:flex;
-  flex-direction:column;
-  align-items:flex-end;
+.dash-alert-sub {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.dash-alert-time {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+/* ─── Activity ───────────────────────────── */
+.dash-act-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(226,232,240,.5);
+  transition: background .12s;
+}
+
+.dash-act-row:last-child {
+  border-bottom: none;
+}
+
+.dash-act-row:hover {
+  background: #f8fafc;
+}
+
+.dash-act-ico {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.dash-act-green { background: rgba(16,185,129,.1); color: var(--green); }
+.dash-act-blue { background: rgba(59,130,246,.1); color: var(--blue); }
+.dash-act-amber { background: rgba(245,158,11,.1); color: var(--amber); }
+.dash-act-red { background: rgba(239,68,68,.08); color: var(--red); }
+.dash-act-teal { background: rgba(20,184,166,.1); color: var(--teal); }
+
+.dash-act-body {
+  flex: 1;
+}
+
+.dash-act-lbl {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dash-act-sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.dash-act-time {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* ─── Bottom grid ────────────────────────── */
+.dash-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+/* ─── Commuter Info tiles ────────────────── */
+.dash-info-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 14px;
+}
+
+.dash-info-tile {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+}
+
+.dash-info-tile-val {
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+.dash-info-tile-lbl {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.dash-link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue);
+  cursor: pointer;
+  margin-top: 8px;
+  display: block;
+  font-family: inherit;
+  transition: opacity .15s;
+}
+
+.dash-link-btn:hover {
+  opacity: .7;
+}
+
+/* ─── Tip panel ──────────────────────────── */
+.dash-tip-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+}
+
+.dash-tip-ico {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(20,184,166,.1);
+  border: 1px solid rgba(20,184,166,.2);
+  color: var(--teal);
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.dash-tip-title {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dash-tip-sub {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* ─── Buttons ────────────────────────────── */
+.dash-btn-ghost {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  min-width: 120px;
-}
-.cap{
-  font-weight: 800;
-  color: rgba(38,43,51,0.62);
-}
-
-/* Pill reuse from your system */
-.pill{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:6px 10px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:800;
-  letter-spacing:0.4px;
-  border: 1px solid transparent;
-}
-.pill-green{ background: rgba(16, 185, 129, 0.12); color: var(--success-green); border-color: rgba(16, 185, 129, 0.25); }
-.pill-yellow{ background: rgba(255, 152, 0, 0.12); color: var(--warning-orange); border-color: rgba(255, 152, 0, 0.25); }
-.pill-red{ background: rgba(239, 68, 68, 0.12); color: var(--error-red); border-color: rgba(239, 68, 68, 0.25); }
-
-/* Health */
-.health{ display:flex; flex-direction:column; gap: 10px; }
-.health-row{
-  border: 2px solid var(--border-light);
-  border-radius: 16px;
-  padding: 12px;
-  background:#fff;
-  display:flex;
-  justify-content:space-between;
-  gap: 10px;
-}
-.health-left{ display:flex; gap: 10px; align-items:flex-start; }
-.health-dot{
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  margin-top: 6px;
-  background: rgba(209,213,219,1);
-}
-.health-dot.ok{ background: rgba(16,185,129,1); }
-.health-dot.info{ background: rgba(30,136,229,1); }
-.health-dot.warn{ background: rgba(239,68,68,1); }
-.health-title{ margin:0; font-weight: 900; font-size: 13px; color: var(--text-dark); }
-.health-sub{ margin:4px 0 0; font-weight: 700; font-size: 12px; color: rgba(38,43,51,0.72); }
-
-.health-mini{
-  display:grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap: 10px;
-}
-.mini-box{
-  border: 2px solid var(--border-light);
-  border-radius: 14px;
-  padding: 10px;
-  background: rgba(245,247,250,0.6);
-}
-.mini-label{
-  margin:0;
-  font-weight: 900;
-  font-size: 11px;
-  letter-spacing: .4px;
-  text-transform: uppercase;
-  color: rgba(38,43,51,0.62);
-}
-.mini-value{
-  margin: 8px 0 0;
-  font-weight: 900;
-  font-size: 18px;
-  color: var(--text-dark);
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
 }
 
-/* Alerts list */
-.alerts-mini{ display:flex; flex-direction:column; gap: 10px; }
-.alert-row{
-  border: 2px solid var(--border-light);
-  border-radius: 16px;
-  padding: 12px;
-  background:#fff;
-  display:flex;
-  justify-content:space-between;
-  gap: 10px;
-}
-.alert-left{ display:flex; gap: 10px; align-items:flex-start; }
-.alert-dot{
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  margin-top: 6px;
-  background: rgba(209,213,219,1);
-}
-.alert-dot.ok{ background: rgba(16,185,129,1); }
-.alert-dot.warn{ background: rgba(239,68,68,1); }
-.alert-dot.info{ background: rgba(30,136,229,1); }
-.alert-title{ margin:0; font-weight: 900; font-size: 13px; color: var(--text-dark); }
-.alert-desc{ margin:4px 0 0; font-weight: 700; font-size: 12px; color: rgba(38,43,51,0.72); }
-.alert-time{ display:block; margin-top: 6px; font-weight: 800; color: rgba(38,43,51,0.55); }
-
-.badge{
-  align-self:flex-start;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-weight: 900;
-  font-size: 11px;
-  border: 1px solid transparent;
-}
-.badge.ok{ background: rgba(16,185,129,0.12); color: var(--success-green); border-color: rgba(16,185,129,0.25); }
-.badge.info{ background: rgba(30,136,229,0.12); color: var(--primary-blue); border-color: rgba(30,136,229,0.25); }
-.badge.warn{ background: rgba(239,68,68,0.12); color: var(--error-red); border-color: rgba(239,68,68,0.25); }
-
-/* Note */
-.note-row{ display:flex; gap: 12px; align-items:flex-start; }
-.note-ico{
-  width: 44px; height: 44px;
-  border-radius: 14px;
-  background: rgba(0,188,212,0.12);
-  border: 1px solid rgba(0,188,212,0.25);
-  color: var(--accent-teal);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  flex-shrink:0;
-}
-.note-title{ margin:0; font-weight: 900; color: var(--text-dark); font-size: 13px; }
-.note-sub{ margin:6px 0 0; font-weight: 800; color: rgba(38,43,51,0.72); font-size: 12px; line-height: 1.4; }
-
-/* Empty */
-.empty{ text-align:center; padding: 18px 10px; color: rgba(38,43,51,0.68); }
-.empty i{ font-size: 34px; color: var(--border-medium); display:block; margin-bottom: 8px; }
-.empty p{ margin:0; font-weight: 900; }
-.empty small{ font-weight: 700; }
-
-/* Responsive */
-@media (max-width: 1100px){
-  .kpi-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-  .main-grid{ grid-template-columns: 1fr; }
-  .action-row{ grid-template-columns: repeat(2, minmax(0,1fr)); }
-}
-@media (max-width: 520px){
-  .action-row{ grid-template-columns: 1fr; }
+.dash-btn-ghost:hover {
+  color: var(--text);
+  border-color: #94a3b8;
 }
 
-.bottom-space{ height: 14px; }
+.dash-btn-ghost:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+/* ─── Empty ──────────────────────────────── */
+.dash-empty-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 16px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* ─── Responsive ─────────────────────────── */
+@media (max-width: 1200px) {
+  .dash-route-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .dash-route-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .dash-route-bottom-row {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-route-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+@media (max-width: 1024px) {
+  .dash-main-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-bottom-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .dash {
+    padding: 14px;
+    gap: 12px;
+  }
+
+  .dash-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash-quick-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .dash-info-tiles {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .dash-health-mini {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .dash-header {
+    flex-direction: column;
+  }
+
+  .dash-header-right {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .dash-bar-lbl {
+    width: 105px;
+  }
+
+  .dash-route-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-route-foot {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 </style>

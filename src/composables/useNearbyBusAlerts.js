@@ -3,6 +3,38 @@ import { computed, ref, watch } from "vue";
 import { useUserLocation } from "@/composables/useUserLocation";
 import { useLiveBuses } from "@/composables/useLiveBuses";
 
+const notifKey = "near_bus_notifs_items_v7";
+const stateKey = "near_bus_notif_state_v7";
+
+function safeJsonParse(s, fallback) {
+  try {
+    const parsed = JSON.parse(s);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/*
+  Shared notification state.
+  This makes the bell state consistent even if multiple components use this composable.
+*/
+const notifications = ref(
+  Array.isArray(safeJsonParse(localStorage.getItem(notifKey), []))
+    ? safeJsonParse(localStorage.getItem(notifKey), [])
+    : []
+);
+
+const notifState = ref(safeJsonParse(localStorage.getItem(stateKey), {}) || {});
+
+function saveNotifs() {
+  localStorage.setItem(notifKey, JSON.stringify(notifications.value));
+}
+
+function saveNotifState() {
+  localStorage.setItem(stateKey, JSON.stringify(notifState.value));
+}
+
 function haversineKm(a, b) {
   const R = 6371;
   const dLat = ((b.lat - a.lat) * Math.PI) / 180;
@@ -21,101 +53,108 @@ function haversineKm(a, b) {
 function fmtTimeAgo(d) {
   const diff = Math.max(0, Date.now() - d.getTime());
   const s = Math.floor(diff / 1000);
+
   if (s < 20) return "Just now";
+
   const m = Math.floor(s / 60);
   if (m < 60) return `${m} min${m > 1 ? "s" : ""} ago`;
+
   const h = Math.floor(m / 60);
   return `${h} hr${h > 1 ? "s" : ""} ago`;
 }
 
-function safeJsonParse(s) {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
+function getBusId(bus) {
+  return String(bus?.id ?? bus?.bus_id ?? "");
 }
 
-// small helper so we don't spam for tiny changes
-function roundKm(km, step = 0.1) {
-  const n = Number(km);
-  if (!Number.isFinite(n)) return null;
-  return Math.round(n / step) * step; // 0.1 km steps
+function getNotificationBusId(n) {
+  return String(n?.busId ?? n?.meta?.bus_id ?? n?.bus?.id ?? "");
+}
+
+function buildNotifText(bus, busId, mode = "near") {
+  const label = bus.trackNo || bus.bus_code || "Bus";
+
+  return {
+    title: mode === "still" ? `${label} is still nearby` : `${label} is near`,
+    msg: `${bus.kmText} away • ${bus.route || bus.plate_no || `Bus #${busId}`}`,
+  };
 }
 
 export function useNearbyBusAlerts({
   intervalMs = 1500,
   maxNearest = 4,
+  nearKm = 1.0,
 
-  // Notification behavior
-  nearKm = 1.0, // bus must be <= this distance to create notif
-  cooldownMs = 2 * 60 * 1000, // ✅ default 2 mins now (change if you want)
-  distanceStepKm = 0.1, // significant distance change threshold for repeat notifs
+  // If the notification is NOT removed, update the same card after this.
+  cooldownMs = 5 * 60 * 1000,
 } = {}) {
   const { coords, hasLocation, status, startLocation } = useUserLocation();
-  const { buses, start, stop, fetchOnce, loading, error } = useLiveBuses({ intervalMs });
 
-  // ✅ Persist notifications list
-  const notifKey = "near_bus_notifs_items";
-  const initialNotifs = safeJsonParse(localStorage.getItem(notifKey)) || [];
-  const notifications = ref(Array.isArray(initialNotifs) ? initialNotifs : []);
-  function saveNotifs() {
-    localStorage.setItem(notifKey, JSON.stringify(notifications.value));
-  }
+  const {
+    buses,
+    start,
+    stop,
+    fetchOnce,
+    loading,
+    error,
+  } = useLiveBuses({ intervalMs });
 
-  // ✅ Per-bus notification memory (persisted)
-  // We store:
-  // { [busId]: { lastAt, everNotified, lastKmBucket, lastSeats, lastCap } }
-  const storageKey = "near_bus_notif_state_v2";
-  const initialState = safeJsonParse(localStorage.getItem(storageKey)) || {};
-  const notifState = ref(initialState && typeof initialState === "object" ? initialState : {});
-  function saveNotifState() {
-    localStorage.setItem(storageKey, JSON.stringify(notifState.value));
-  }
-
-  // ✅ Unread count for bell badge
   const unreadCount = computed(() =>
-    (notifications.value || []).reduce((acc, n) => acc + (n.read ? 0 : 1), 0)
+    notifications.value.reduce((acc, n) => acc + (n.read ? 0 : 1), 0)
   );
 
-  // Compute nearest buses
   const nearestBuses = computed(() => {
     if (!hasLocation.value || !coords.value) return [];
+
     const user = coords.value;
 
-    const list = (buses.value || [])
-      .filter((b) => Number.isFinite(b.lat) && Number.isFinite(b.lng))
+    return (buses.value || [])
+      .filter((b) => Number.isFinite(Number(b.lat)) && Number.isFinite(Number(b.lng)))
       .map((b) => {
-        const km = haversineKm(user, { lat: b.lat, lng: b.lng });
+        const km = haversineKm(user, {
+          lat: Number(b.lat),
+          lng: Number(b.lng),
+        });
+
         return {
           ...b,
           km,
+          distanceKm: km,
           kmText: km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
         };
       })
-      .sort((a, b) => a.km - b.km);
-
-    return list.slice(0, maxNearest);
+      .sort((a, b) => a.km - b.km)
+      .slice(0, maxNearest);
   });
 
-  function addNotif({ bus, title, msg, now }) {
-    const key = String(bus.id);
+  function addNotif({ bus, title, msg, now, forceNew = false }) {
+    const busId = getBusId(bus);
+    if (!busId) return;
+
+    const existingIndex = notifications.value.findIndex(
+      (n) => getNotificationBusId(n) === busId
+    );
+
+    if (existingIndex !== -1 && !forceNew) return;
+
     notifications.value.unshift({
-      id: `near-${key}-${now}`,
-      type: "bus",
+      id: `near-${busId}-${now}`,
+      type: "nearby_bus",
+      busId,
+      bus,
       title,
       message: msg,
       time: "Just now",
       read: false,
+      createdAt: now,
       meta: {
-        bus_id: bus.id,
+        bus_id: busId,
         km: bus.km,
         lat: bus.lat,
         lng: bus.lng,
       },
     });
 
-    // keep list small
     if (notifications.value.length > 30) {
       notifications.value = notifications.value.slice(0, 30);
     }
@@ -123,96 +162,138 @@ export function useNearbyBusAlerts({
     saveNotifs();
   }
 
-  // ✅ Recommended behavior:
-  // - first time: "Bus is near"
-  // - repeat (after cooldown): "Bus is still nearby"
-  // Repeat only if:
-  //   - still near
-  //   - cooldown passed
-  //   - AND (distance bucket changed OR seats changed OR capacity changed)
-  //     (this avoids spam if nothing changed at all)
+  function updateExistingNotif({ bus, title, msg, now }) {
+    const busId = getBusId(bus);
+    if (!busId) return false;
+
+    const index = notifications.value.findIndex(
+      (n) => getNotificationBusId(n) === busId
+    );
+
+    if (index === -1) return false;
+
+    notifications.value[index] = {
+      ...notifications.value[index],
+      bus,
+      title,
+      message: msg,
+      time: "Just now",
+      read: false,
+      createdAt: now,
+      meta: {
+        ...notifications.value[index].meta,
+        bus_id: busId,
+        km: bus.km,
+        lat: bus.lat,
+        lng: bus.lng,
+      },
+    };
+
+    saveNotifs();
+    return true;
+  }
+
   function maybeCreateNearBusNotifs(list) {
     const now = Date.now();
+    let changedState = false;
 
     for (const bus of list) {
       if (!(bus.km <= nearKm)) continue;
 
-      const busId = String(bus.id);
+      const busId = getBusId(bus);
       if (!busId) continue;
 
       const state = notifState.value[busId] || {
         lastAt: 0,
         everNotified: false,
-        lastKmBucket: null,
-        lastSeats: null,
-        lastCap: null,
       };
 
-      const kmBucket = roundKm(bus.km, distanceStepKm);
-      const seats = Number.isFinite(Number(bus.seats)) ? Number(bus.seats) : null;
-      const cap = Number.isFinite(Number(bus.capacity)) ? Number(bus.capacity) : null;
+      const existingIndex = notifications.value.findIndex(
+        (n) => getNotificationBusId(n) === busId
+      );
 
+      const hasVisibleNotif = existingIndex !== -1;
       const cooldownPassed = !state.lastAt || now - state.lastAt >= cooldownMs;
 
-      // detect meaningful change
-      const distChanged = kmBucket != null && state.lastKmBucket != null && kmBucket !== state.lastKmBucket;
-      const seatsChanged = seats != null && state.lastSeats != null && seats !== state.lastSeats;
-      const capChanged = cap != null && state.lastCap != null && cap !== state.lastCap;
+      // First time: create "is near"
+      if (!state.everNotified && !hasVisibleNotif) {
+        const text = buildNotifText(bus, busId, "near");
 
-      // FIRST TIME notif (no cooldown needed)
-      if (!state.everNotified) {
-        const title = `${bus.trackNo || bus.bus_code || "Bus"} is near`;
-        const msg = `${bus.kmText} away • ${bus.route || bus.plate_no || `Bus #${bus.id}`}`;
-        addNotif({ bus, title, msg, now });
+        addNotif({
+          bus,
+          title: text.title,
+          msg: text.msg,
+          now,
+        });
 
         notifState.value[busId] = {
           lastAt: now,
           everNotified: true,
-          lastKmBucket: kmBucket,
-          lastSeats: seats,
-          lastCap: cap,
         };
-        saveNotifState();
+
+        changedState = true;
         continue;
       }
 
-      // REPEAT notif only after cooldown and when something changed
-      if (cooldownPassed && (distChanged || seatsChanged || capChanged)) {
-        const title = `${bus.trackNo || bus.bus_code || "Bus"} is still nearby`;
-        const msg = `${bus.kmText} away • ${bus.route || bus.plate_no || `Bus #${bus.id}`}`;
-        addNotif({ bus, title, msg, now });
+      // If user did NOT remove it:
+      // after 5 mins, update/overwrite SAME card to "still nearby"
+      if (hasVisibleNotif && cooldownPassed) {
+        const text = buildNotifText(bus, busId, "still");
+
+        updateExistingNotif({
+          bus,
+          title: text.title,
+          msg: text.msg,
+          now,
+        });
 
         notifState.value[busId] = {
           ...state,
           lastAt: now,
-          lastKmBucket: kmBucket,
-          lastSeats: seats,
-          lastCap: cap,
+          everNotified: true,
         };
-        saveNotifState();
-      } else {
-        // update stored snapshot silently (so next time we can detect change)
+
+        changedState = true;
+        continue;
+      }
+
+      // If user removed it:
+      // since no visible notification exists, immediately create a new "still nearby"
+      if (!hasVisibleNotif && state.everNotified) {
+        const text = buildNotifText(bus, busId, "still");
+
+        addNotif({
+          bus,
+          title: text.title,
+          msg: text.msg,
+          now,
+          forceNew: true,
+        });
+
         notifState.value[busId] = {
           ...state,
-          lastKmBucket: kmBucket,
-          lastSeats: seats,
-          lastCap: cap,
+          lastAt: now,
+          everNotified: true,
         };
-        // no need to save each loop heavily, but okay — we’ll save once after loop
+
+        changedState = true;
       }
     }
 
-    saveNotifState();
+    if (changedState) saveNotifState();
   }
 
-  // Update time labels every refresh tick
   function refreshTimes() {
     notifications.value = notifications.value.map((n) => {
-      const t = String(n.id).split("-").pop();
-      const ms = Number(t);
+      const ms = Number(n.createdAt || String(n.id).split("-").pop());
       if (!Number.isFinite(ms)) return n;
-      return { ...n, time: fmtTimeAgo(new Date(ms)) };
+
+      return {
+        ...n,
+        time: fmtTimeAgo(new Date(ms)),
+      };
     });
+
     saveNotifs();
   }
 
@@ -220,6 +301,7 @@ export function useNearbyBusAlerts({
     nearestBuses,
     (list) => {
       if (!hasLocation.value) return;
+
       maybeCreateNearBusNotifs(list);
       refreshTimes();
     },
@@ -231,7 +313,11 @@ export function useNearbyBusAlerts({
   }
 
   function markAllRead() {
-    notifications.value = notifications.value.map((n) => ({ ...n, read: true }));
+    notifications.value = notifications.value.map((n) => ({
+      ...n,
+      read: true,
+    }));
+
     saveNotifs();
   }
 
@@ -239,24 +325,62 @@ export function useNearbyBusAlerts({
     notifications.value = notifications.value.map((n) =>
       n.id === id ? { ...n, read: true } : n
     );
+
     saveNotifs();
   }
 
   function dismiss(id) {
+    const item = notifications.value.find((n) => n.id === id);
+    const busId = getNotificationBusId(item);
+
     notifications.value = notifications.value.filter((n) => n.id !== id);
     saveNotifs();
+
+    // If bus is still nearby, immediately display a NEW "still nearby" notification.
+    const bus = nearestBuses.value.find(
+      (b) => String(getBusId(b)) === String(busId) && b.km <= nearKm
+    );
+
+    if (bus) {
+      const now = Date.now();
+      const text = buildNotifText(bus, busId, "still");
+
+      addNotif({
+        bus,
+        title: text.title,
+        msg: text.msg,
+        now,
+        forceNew: true,
+      });
+
+      notifState.value[busId] = {
+        ...(notifState.value[busId] || {}),
+        lastAt: now,
+        everNotified: true,
+      };
+
+      saveNotifState();
+    }
   }
 
   function clear() {
     notifications.value = [];
     saveNotifs();
 
-    // optional: also reset per-bus state to allow "first time" again
+    /*
+      Do NOT reset notifState.
+      If buses are still nearby, they can appear again as "still nearby".
+    */
+  }
+
+  function resetNearbyNotificationMemory() {
+    notifications.value = [];
     notifState.value = {};
+
+    saveNotifs();
     saveNotifState();
   }
 
-  // Start/Stop live buses only when location is ON
   watch(
     hasLocation,
     (on) => {
@@ -267,25 +391,23 @@ export function useNearbyBusAlerts({
   );
 
   return {
-    // location
     coords,
     hasLocation,
     status,
     enableLocation,
 
-    // buses
     buses,
     nearestBuses,
     loading,
     error,
     fetchOnce,
 
-    // notifications
     notifications,
     unreadCount,
     markRead,
     markAllRead,
     dismiss,
     clear,
+    resetNearbyNotificationMemory,
   };
 }

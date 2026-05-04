@@ -1,165 +1,216 @@
+<!-- src/pages/admin/AlertsPage.vue -->
 <template>
-  <div class="al-page">
-    <!-- Top -->
-    <div class="al-top">
-      <div>
-        <h1 class="al-title">Alerts & Notifications</h1>
-        <p class="al-sub">System events, IoT health, authentication logs, and bus updates.</p>
+  <div class="al">
+
+    <!-- ── Header ── -->
+    <div class="al-header">
+      <div class="al-header-left">
+        <div class="al-title-row">
+          <h1 class="al-title">Alerts</h1>
+          <span class="al-live-badge" v-if="filtered.some(n => n.active && n.unread)">
+            <span class="al-live-dot"></span>
+            New
+          </span>
+        </div>
+        <p class="al-subtitle">System events · IoT health · Auth logs · Bus updates</p>
       </div>
 
-      <div class="al-actions">
+      <div class="al-header-right">
         <div class="al-search">
-          <i class="fas fa-search"></i>
+          <i class="fas fa-magnifying-glass al-search-icon"></i>
           <input
             v-model="q"
-            placeholder="Search title, message, type, dedupe..."
+            class="al-search-input"
+            type="text"
+            placeholder="Search title, message, type…"
             @keyup.enter="refresh"
           />
+          <button v-if="q" class="al-search-clear" @click="q = ''">
+            <i class="fas fa-xmark"></i>
+          </button>
         </div>
-
-        <!-- ✅ Clear controls -->
-        <button class="btn ghost" type="button" @click="onClearResolved" :disabled="loading">
+        <button class="al-btn-ghost" @click="onClearResolved" :disabled="loading">
           <i class="fas fa-broom"></i>
-          <span>Clear Resolved</span>
+          Clear Resolved
         </button>
-
-        <button class="btn danger" type="button" @click="onClearAll" :disabled="loading">
+        <button class="al-btn-danger" @click="onClearAll" :disabled="loading">
           <i class="fas fa-trash"></i>
-          <span>Clear All</span>
+          Clear All
         </button>
-
-        <button class="btn primary" type="button" @click="refresh" :disabled="loading">
-          <i class="fas fa-rotate"></i>
-          <span>{{ loading ? "Refreshing..." : "Refresh" }}</span>
+        <button class="al-btn-primary" @click="refresh" :disabled="loading">
+          <i class="fas fa-rotate" :class="{ 'fa-spin': loading }"></i>
+          {{ loading ? 'Refreshing…' : 'Refresh' }}
         </button>
       </div>
     </div>
 
-    <!-- Filters + Pager -->
-    <div class="al-filters">
-      <button
-        v-for="f in filters"
-        :key="f.key"
-        class="chip"
-        :class="{ on: activeFilter === f.key }"
-        @click="activeFilter = f.key"
-      >
-        <span>{{ f.label }}</span>
-        <span class="chip-count">{{ filterCount(f.key) }}</span>
-      </button>
+    <!-- ── Summary cards ── -->
+    <div class="al-summary">
+      <div class="al-stat">
+        <div class="al-stat-value">{{ sorted.length }}</div>
+        <div class="al-stat-label">Total</div>
+      </div>
+      <div class="al-stat al-stat--red">
+        <div class="al-stat-value">{{ filterCount('critical') }}</div>
+        <div class="al-stat-label">Critical</div>
+      </div>
+      <div class="al-stat al-stat--amber">
+        <div class="al-stat-value">{{ filterCount('warning') }}</div>
+        <div class="al-stat-label">Warnings</div>
+      </div>
+      <div class="al-stat al-stat--blue">
+        <div class="al-stat-value">{{ filterCount('unread') }}</div>
+        <div class="al-stat-label">Unread</div>
+      </div>
+      <div class="al-stat al-stat--green">
+        <div class="al-stat-value">{{ filterCount('resolved') }}</div>
+        <div class="al-stat-label">Resolved</div>
+      </div>
+    </div>
 
-      <div class="spacer"></div>
+    <!-- ── Filters + pager ── -->
+    <div class="al-toolbar">
+      <div class="al-filters">
+        <button
+          v-for="f in filters"
+          :key="f.key"
+          class="al-pill"
+          :class="{ 'al-pill--active': activeFilter === f.key }"
+          @click="activeFilter = f.key"
+        >
+          {{ f.label }}
+          <span class="al-pill-count">{{ filterCount(f.key) }}</span>
+        </button>
+      </div>
 
-      <div class="pager">
-        <button class="btn ghost" :disabled="offset === 0 || loading" @click="prevPage">
+      <div class="al-pager">
+        <button class="al-icon-btn" :disabled="offset === 0 || loading" @click="prevPage">
           <i class="fas fa-chevron-left"></i>
         </button>
-        <div class="page-info">
-          {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} of {{ total }}
-        </div>
-        <button class="btn ghost" :disabled="offset + limit >= total || loading" @click="nextPage">
+        <span class="al-page-info">
+          {{ offset + 1 }}–{{ Math.min(offset + limit, total) }} <span class="al-page-of">of {{ total }}</span>
+        </span>
+        <button class="al-icon-btn" :disabled="offset + limit >= total || loading" @click="nextPage">
           <i class="fas fa-chevron-right"></i>
         </button>
       </div>
     </div>
 
-    <!-- Error -->
+    <!-- ── Error ── -->
     <div v-if="hasError" class="al-error">
       <i class="fas fa-triangle-exclamation"></i>
-      <span>{{ error }}</span>
+      {{ error }}
     </div>
 
-    <!-- List -->
+    <!-- ── List ── -->
     <div class="al-list">
-      <div v-if="!loading && filtered.length === 0" class="empty">
-        No notifications found.
+
+      <!-- Empty -->
+      <div v-if="!loading && filtered.length === 0" class="al-empty">
+        <i class="fas fa-bell-slash"></i>
+        <p>No notifications found</p>
+        <small>Try adjusting your search or filter</small>
       </div>
 
+      <!-- Notification cards -->
       <div
         v-for="n in filtered"
         :key="n.id"
-        class="card"
+        class="al-card"
         :class="[
-          severityClass(n.severity),
-          {
-            unread: n.unread,
-            resolved: !n.active,
-            attention: n.unread || n.active,
-            'ring-unread': n.unread,
-            'ring-active': !n.unread && n.active
-          }
+          `al-card--${sevKey(n.severity)}`,
+          { 'al-card--unread': n.unread, 'al-card--resolved': !n.active }
         ]"
       >
-        <div class="icon">
+        <!-- Severity bar -->
+        <div class="al-card-bar" :class="`al-bar--${sevKey(n.severity)}`"></div>
+
+        <!-- Icon -->
+        <div class="al-card-icon" :class="`al-icon--${sevKey(n.severity)}`">
           <i :class="iconFor(n)"></i>
         </div>
 
-        <div class="content">
-          <div class="row1">
-            <div class="title">
-              {{ n.title }}
-              <span v-if="n.unread" class="dot" title="Unread"></span>
+        <!-- Body -->
+        <div class="al-card-body">
+          <div class="al-card-top">
+            <div class="al-card-title-row">
+              <span class="al-card-title">{{ n.title }}</span>
+              <span v-if="n.unread" class="al-unread-dot" title="Unread"></span>
             </div>
-
-            <div class="badges">
-              <span class="badge">{{ categoryLabel(n.category) }}</span>
-              <span class="badge sev">{{ severityLabel(n.severity) }}</span>
-              <span v-if="n.active" class="badge status active">Active</span>
-              <span v-else class="badge status resolved">Resolved</span>
+            <div class="al-card-badges">
+              <span class="al-badge al-badge--cat">{{ categoryLabel(n.category) }}</span>
+              <span class="al-badge" :class="`al-badge--${sevKey(n.severity)}`">{{ severityLabel(n.severity) }}</span>
+              <span class="al-badge" :class="n.active ? 'al-badge--active' : 'al-badge--resolved'">
+                {{ n.active ? 'Active' : 'Resolved' }}
+              </span>
             </div>
           </div>
 
-          <div class="msg">
-            {{ n.message }}
-          </div>
+          <p class="al-card-msg">{{ n.message }}</p>
 
-          <div class="row3">
-            <div class="time">
-              <i class="fas fa-clock"></i>
-              {{ prettyTime(n.updated_at || n.created_at) }}
-              <span v-if="n.type" class="muted">• {{ n.type }}</span>
-              <span v-if="n.dedupe_key" class="muted">• {{ n.dedupe_key }}</span>
+          <div class="al-card-footer">
+            <div class="al-card-meta">
+              <span class="al-meta-item">
+                <i class="fas fa-clock"></i>
+                {{ prettyTime(n.updated_at || n.created_at) }}
+              </span>
+              <span v-if="n.type" class="al-meta-sep">·</span>
+              <span v-if="n.type" class="al-meta-item">{{ n.type }}</span>
+              <span v-if="n.dedupe_key" class="al-meta-sep">·</span>
+              <span v-if="n.dedupe_key" class="al-meta-item al-mono">{{ n.dedupe_key }}</span>
             </div>
 
-            <div class="actions">
-              <button
-                v-if="n.unread"
-                class="btn small"
-                @click="markRead(n.id)"
-                title="Mark as read"
-              >
+            <div class="al-card-actions">
+              <button v-if="n.unread" class="al-action-btn" @click="markRead(n.id)" title="Mark as read">
                 <i class="fas fa-envelope-open"></i>
+                <span>Read</span>
               </button>
-
-              <button
-                v-else
-                class="btn small ghost"
-                @click="markUnread(n.id)"
-                title="Mark as unread"
-              >
+              <button v-else class="al-action-btn" @click="markUnread(n.id)" title="Mark as unread">
                 <i class="fas fa-envelope"></i>
+                <span>Unread</span>
               </button>
-
-              <button
-                v-if="n.active"
-                class="btn small danger"
-                @click="resolve(n.id)"
-                title="Resolve"
-              >
+              <button v-if="n.active" class="al-action-btn al-action-btn--resolve" @click="resolve(n.id)" title="Resolve">
                 <i class="fas fa-check"></i>
+                <span>Resolve</span>
               </button>
-
-              <!-- ✅ Delete single -->
-              <button
-                class="btn small danger"
-                @click="onDeleteOne(n)"
-                title="Delete"
-              >
+              <button class="al-action-btn al-action-btn--delete" @click="onDeleteOne(n)" title="Delete">
                 <i class="fas fa-trash"></i>
               </button>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Loading skeletons -->
+      <template v-if="loading && sorted.length === 0">
+        <div v-for="n in 5" :key="'sk-' + n" class="al-card al-card-skeleton">
+          <div class="al-card-bar al-bar--gray"></div>
+          <div class="al-skel al-skel-icon"></div>
+          <div class="al-card-body">
+            <div class="al-skel" style="width:60%;height:14px;margin-bottom:8px;"></div>
+            <div class="al-skel" style="width:90%;height:12px;margin-bottom:6px;"></div>
+            <div class="al-skel" style="width:40%;height:10px;"></div>
+          </div>
+        </div>
+      </template>
+
+    </div>
+
+    <!-- ── Footer ── -->
+    <div class="al-footer" v-if="!loading && sorted.length > 0">
+      <span class="al-footer-text">
+        Showing <b>{{ filtered.length }}</b> of <b>{{ total }}</b> notifications
+      </span>
+      <div class="al-pager">
+        <button class="al-icon-btn" :disabled="offset === 0 || loading" @click="prevPage">
+          <i class="fas fa-chevron-left"></i>
+        </button>
+        <span class="al-page-info">
+          Page {{ Math.floor(offset / limit) + 1 }}
+        </span>
+        <button class="al-icon-btn" :disabled="offset + limit >= total || loading" @click="nextPage">
+          <i class="fas fa-chevron-right"></i>
+        </button>
       </div>
     </div>
 
@@ -170,16 +221,16 @@
 import { ref, computed, onMounted } from "vue";
 import { useNotifications } from "@/composables/useNotifications";
 
-const q = ref("");
-const activeFilter = ref("all");
+const q             = ref("");
+const activeFilter  = ref("all");
 
 const filters = [
-  { key: "all", label: "All" },
-  { key: "active", label: "Active" },
-  { key: "unread", label: "Unread" },
+  { key: "all",      label: "All" },
+  { key: "active",   label: "Active" },
+  { key: "unread",   label: "Unread" },
   { key: "critical", label: "Critical" },
-  { key: "warning", label: "Warnings" },
-  { key: "info", label: "Info" },
+  { key: "warning",  label: "Warnings" },
+  { key: "info",     label: "Info" },
   { key: "resolved", label: "Resolved" },
 ];
 
@@ -196,8 +247,8 @@ const {
   markRead,
   markUnread,
   resolve,
-  remove, // ✅ new (delete single)
-  clear,  // ✅ new (bulk clear)
+  remove,
+  clear,
   severityLabel,
   severityClass,
   categoryLabel,
@@ -222,14 +273,19 @@ function prevPage() {
 
 function prettyTime(iso) {
   if (!iso) return "";
-  const d = new Date(iso);
-  return d.toLocaleString();
+  return new Date(iso).toLocaleString("en-PH", { dateStyle: "medium", timeStyle: "short" });
 }
 
 function iconFor(n) {
   if (n.severity === 3) return "fas fa-circle-exclamation";
   if (n.severity === 2) return "fas fa-triangle-exclamation";
   return "fas fa-circle-info";
+}
+
+function sevKey(severity) {
+  if (severity === 3) return "red";
+  if (severity === 2) return "amber";
+  return "blue";
 }
 
 function sortTs(n) {
@@ -244,244 +300,653 @@ const sorted = computed(() => {
 });
 
 const filtered = computed(() => {
-  const list = [...sorted.value];
   const f = activeFilter.value;
-
-  if (f === "all") return list;
-  if (f === "active") return list.filter((x) => x.active);
-  if (f === "resolved") return list.filter((x) => !x.active);
-  if (f === "unread") return list.filter((x) => x.unread);
-  if (f === "critical") return list.filter((x) => x.severity === 3);
-  if (f === "warning") return list.filter((x) => x.severity === 2);
-  if (f === "info") return list.filter((x) => x.severity === 1);
-
+  let list = [...sorted.value];
+  if (f === "active")   list = list.filter(x => x.active);
+  if (f === "resolved") list = list.filter(x => !x.active);
+  if (f === "unread")   list = list.filter(x => x.unread);
+  if (f === "critical") list = list.filter(x => x.severity === 3);
+  if (f === "warning")  list = list.filter(x => x.severity === 2);
+  if (f === "info")     list = list.filter(x => x.severity === 1);
   return list;
 });
 
-/* ✅ counts for each filter (based on current rows, not paginated view) */
 function filterCount(key) {
   const list = sorted.value;
-  if (key === "all") return list.length;
-  if (key === "active") return list.filter((x) => x.active).length;
-  if (key === "resolved") return list.filter((x) => !x.active).length;
-  if (key === "unread") return list.filter((x) => x.unread).length;
-  if (key === "critical") return list.filter((x) => x.severity === 3).length;
-  if (key === "warning") return list.filter((x) => x.severity === 2).length;
-  if (key === "info") return list.filter((x) => x.severity === 1).length;
+  if (key === "all")      return list.length;
+  if (key === "active")   return list.filter(x => x.active).length;
+  if (key === "resolved") return list.filter(x => !x.active).length;
+  if (key === "unread")   return list.filter(x => x.unread).length;
+  if (key === "critical") return list.filter(x => x.severity === 3).length;
+  if (key === "warning")  return list.filter(x => x.severity === 2).length;
+  if (key === "info")     return list.filter(x => x.severity === 1).length;
   return 0;
 }
-
-/* ===========================
-   ✅ Delete / Clear actions
-=========================== */
 
 async function onDeleteOne(n) {
   const ok = confirm(`Delete this notification?\n\n${n.title}`);
   if (!ok) return;
-
   await remove(n.id);
 }
 
 async function onClearResolved() {
-  const ok = confirm("Clear all RESOLVED notifications? (safe)");
+  const ok = confirm("Clear all resolved notifications?");
   if (!ok) return;
-
-  // default safe
   await clear({ mode: "resolved" });
 }
 
 async function onClearAll() {
   const ok = confirm("⚠️ Clear ALL notifications? This cannot be undone.");
   if (!ok) return;
-
   await clear({ mode: "all" });
 }
 </script>
 
 <style scoped>
-.al-page { padding: 24px; background: #f8fafc; min-height: 100vh; }
+/* ─── Tokens ─────────────────────────────── */
+.al {
+  --green:  #10b981;
+  --amber:  #f59e0b;
+  --red:    #ef4444;
+  --blue:   #3b82f6;
+  --border: rgba(226,232,240,1);
+  --bg:     #f8fafc;
+  --card:   #ffffff;
+  --text:   #0f172a;
+  --muted:  #64748b;
+  --radius: 14px;
 
-/* Top */
-.al-top {
+  font-family: 'DM Sans', 'Segoe UI', sans-serif;
+  background: var(--bg);
+  padding: 24px;
+  min-height: 100vh;
+  color: var(--text);
   display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* ─── Header ─────────────────────────────── */
+.al-header {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 14px;
+  flex-wrap: wrap;
 }
-.al-title { margin: 0; font-size: 22px; font-weight: 900; }
-.al-sub { margin: 6px 0 0; font-size: 13px; color: #64748b; }
 
-.al-actions { display: flex; align-items: center; gap: 10px; }
-.al-search {
-  display: flex; align-items: center; gap: 10px;
-  background: white; border: 1px solid #e2e8f0; border-radius: 14px;
-  padding: 10px 12px; min-width: 320px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.04);
+.al-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.al-search i { color: #94a3b8; }
-.al-search input { border: none; outline: none; width: 100%; font-size: 13px; }
+
+.al-title {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.al-subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 4px 0 0;
+}
+
+.al-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(239,68,68,.1);
+  color: var(--red);
+}
+
+.al-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .4; transform: scale(.8); }
+}
+
+.al-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Search */
+.al-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 260px;
+  transition: all .15s;
+}
+
+.al-search:focus-within {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+}
+
+.al-search-icon { color: var(--muted); font-size: 12px; flex-shrink: 0; }
+
+.al-search-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+  flex: 1;
+  color: var(--text);
+  font-family: inherit;
+}
+
+.al-search-input::placeholder { color: var(--muted); }
+
+.al-search-clear {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  padding: 0;
+  font-size: 11px;
+}
 
 /* Buttons */
-.btn {
-  border: 1px solid transparent; background: white; color: #0f172a;
-  padding: 10px 14px; border-radius: 14px; font-weight: 800;
-  cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
-  box-shadow: 0 8px 20px rgba(0,0,0,0.04);
-}
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn.primary { background: linear-gradient(135deg, #3b82f6, #06b6d4); color: white; }
-.btn.ghost { background: transparent; border-color: #e2e8f0; box-shadow: none; }
-.btn.small { padding: 8px 10px; border-radius: 12px; box-shadow: none; border-color: #e2e8f0; }
-.btn.small.ghost { background: transparent; }
-
-/* ✅ danger styles (for big + small) */
-.btn.danger {
-  background: #fee2e2;
-  border-color: #fecaca;
-  color: #991b1b;
-}
-.btn.danger:hover { filter: brightness(0.98); }
-
-/* Filters + Pager */
-.al-filters {
-  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-.chip {
-  border: 1px solid #e2e8f0;
-  background: white;
-  padding: 8px 12px;
-  border-radius: 999px;
-  font-weight: 900;
-  cursor: pointer;
-  font-size: 12px;
+.al-btn-ghost {
   display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  font-family: inherit;
+}
+.al-btn-ghost:hover { color: var(--text); border-color: #94a3b8; }
+.al-btn-ghost:disabled { opacity: .5; cursor: not-allowed; }
+
+.al-btn-danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(239,68,68,.2);
+  background: rgba(239,68,68,.06);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--red);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all .15s;
+  font-family: inherit;
+}
+.al-btn-danger:hover { background: rgba(239,68,68,.12); }
+.al-btn-danger:disabled { opacity: .5; cursor: not-allowed; }
+
+.al-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: none;
+  background: var(--text);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity .15s;
+  font-family: inherit;
+}
+.al-btn-primary:hover { opacity: .85; }
+.al-btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ─── Summary ────────────────────────────── */
+.al-summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.al-stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  min-width: 90px;
+  flex: 1;
+}
+
+.al-stat-value {
+  font-size: 26px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.al-stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.al-stat--red   .al-stat-value { color: var(--red); }
+.al-stat--amber .al-stat-value { color: var(--amber); }
+.al-stat--blue  .al-stat-value { color: var(--blue); }
+.al-stat--green .al-stat-value { color: var(--green); }
+
+/* ─── Toolbar ────────────────────────────── */
+.al-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.al-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.al-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
+}
+
+.al-pill:hover { color: var(--text); border-color: #94a3b8; }
+
+.al-pill--active {
+  background: var(--text);
+  border-color: var(--text);
+  color: #fff;
+}
+
+.al-pill-count {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.2);
+}
+
+.al-pill:not(.al-pill--active) .al-pill-count {
+  background: var(--bg);
+  color: var(--muted);
+}
+
+.al-pager {
+  display: flex;
   align-items: center;
   gap: 8px;
 }
-.chip.on { background: #0ea5e9; color: white; border-color: #0ea5e9; }
 
-/* small count bubble */
-.chip-count {
+.al-page-info {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.al-page-of { color: var(--muted); font-weight: 600; }
+
+.al-icon-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  color: var(--muted);
   font-size: 11px;
-  font-weight: 950;
-  line-height: 1;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #e2e8f0;
-  color: #0f172a;
+  display: grid;
+  place-items: center;
+  transition: all .15s;
+  font-family: inherit;
 }
-.chip.on .chip-count {
-  background: rgba(255, 255, 255, 0.22);
-  color: white;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-}
+.al-icon-btn:hover:not(:disabled) { color: var(--text); border-color: #94a3b8; }
+.al-icon-btn:disabled { opacity: .4; cursor: not-allowed; }
 
-.spacer { flex: 1; }
-.pager { display: flex; align-items: center; gap: 10px; }
-.page-info { font-size: 12px; color: #64748b; font-weight: 700; }
-
-/* Error */
+/* ─── Error ──────────────────────────────── */
 .al-error {
-  background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412;
-  padding: 12px 14px; border-radius: 14px;
-  display: flex; align-items: center; gap: 10px;
-  font-weight: 800; margin-bottom: 14px;
-}
-
-/* List */
-.al-list { display: flex; flex-direction: column; gap: 12px; }
-.empty {
-  background: white; border: 1px dashed #e2e8f0; border-radius: 16px;
-  padding: 18px; color: #64748b; font-weight: 800;
-}
-
-/* Card */
-.card {
-  background: white;
-  border-radius: 16px;
-  padding: 14px;
   display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(239,68,68,.2);
+  background: rgba(239,68,68,.06);
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* ─── List ───────────────────────────────── */
+.al-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ─── Empty ──────────────────────────────── */
+.al-empty {
+  padding: 56px 20px;
+  text-align: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--muted);
+}
+
+.al-empty i { font-size: 28px; display: block; margin-bottom: 12px; opacity: .5; }
+.al-empty p { font-weight: 800; color: var(--text); margin: 0 0 4px; }
+.al-empty small { font-size: 12px; }
+
+/* ─── Card ───────────────────────────────── */
+.al-card {
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.04);
-  border-left: 4px solid #e2e8f0;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: box-shadow .15s, border-color .15s;
   position: relative;
 }
 
-/* Dim only secondary text when Resolved + Read */
-.card.resolved:not(.unread) .msg,
-.card.resolved:not(.unread) .time,
-.card.resolved:not(.unread) .muted { opacity: 0.65; }
+.al-card:hover { border-color: #cbd5e1; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
 
-/* severity left border */
-.card.critical { border-left-color: #ef4444; }
-.card.warning  { border-left-color: #f59e0b; }
-.card.info     { border-left-color: #3b82f6; }
-
-/* attention shadow only */
-.card.attention { box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08); }
-
-/* one clean ring only */
-.card.ring-unread {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22), 0 14px 34px rgba(15, 23, 42, 0.08);
-}
-.card.ring-active {
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.22), 0 14px 34px rgba(15, 23, 42, 0.08);
+/* Unread — blue ring */
+.al-card--unread {
+  border-color: rgba(59,130,246,.3);
+  box-shadow: 0 0 0 2px rgba(59,130,246,.1);
 }
 
-.icon {
-  width: 44px; height: 44px; border-radius: 14px;
-  display: grid; place-items: center;
-  background: #f1f5f9; color: #0f172a;
-}
-.content { flex: 1; min-width: 0; }
-
-.row1 { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.title { font-weight: 950; font-size: 14px; display: flex; align-items: center; gap: 8px; }
-.dot { width: 8px; height: 8px; border-radius: 999px; background: #3b82f6; display: inline-block; }
-
-.badges { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
-.badge {
-  font-size: 10px; padding: 4px 8px; border-radius: 999px;
-  font-weight: 900; border: 1px solid transparent;
-  transition: all 0.25s ease;
+/* Resolved — dimmed */
+.al-card--resolved:not(.al-card--unread) {
+  opacity: .72;
 }
 
-/* ACTIVE -> bright pills */
-.card:not(.resolved) .badge {
-  background: #e0f2fe; color: #0369a1; border-color: #bae6fd;
-}
-.card:not(.resolved) .badge.sev {
-  background: #dbeafe; color: #1d4ed8; border-color: #bfdbfe;
-}
-.card:not(.resolved) .badge.status.active {
-  background: #fef3c7; color: #92400e; border-color: #fde68a;
+.al-card--resolved:not(.al-card--unread) .al-card-title,
+.al-card--resolved:not(.al-card--unread) .al-card-msg {
+  color: var(--muted);
 }
 
-/* RESOLVED + READ -> muted pills */
-.card.resolved:not(.unread) .badge {
-  background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0;
-}
-.card.resolved:not(.unread) .badge.status.resolved {
-  background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0;
-}
-
-/* resolved but UNREAD -> keep visible */
-.card.resolved.unread .badge {
-  background: #e0f2fe; color: #0369a1; border-color: #bae6fd;
+/* Left severity bar */
+.al-card-bar {
+  width: 4px;
+  align-self: stretch;
+  flex-shrink: 0;
+  border-radius: 0;
 }
 
-.msg {
-  margin: 6px 0 10px;
+.al-bar--red   { background: var(--red); }
+.al-bar--amber { background: var(--amber); }
+.al-bar--blue  { background: var(--blue); }
+.al-bar--gray  { background: #e2e8f0; }
+
+/* Icon */
+.al-card-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  flex-shrink: 0;
+  margin: 14px 0 14px 0;
+}
+
+.al-icon--red   { background: rgba(239,68,68,.08);  color: var(--red); }
+.al-icon--amber { background: rgba(245,158,11,.08); color: var(--amber); }
+.al-icon--blue  { background: rgba(59,130,246,.08); color: var(--blue); }
+
+/* Body */
+.al-card-body {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 14px 14px 0;
+}
+
+.al-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.al-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.al-card-title {
   font-size: 13px;
-  color: #475569;
-  line-height: 1.35;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.al-unread-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex-shrink: 0;
+}
+
+.al-card-badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+/* Badges */
+.al-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.al-badge--cat      { background: #f1f5f9; color: var(--muted); border-color: var(--border); }
+.al-badge--red      { background: rgba(239,68,68,.08);  color: #991b1b; border-color: rgba(239,68,68,.2); }
+.al-badge--amber    { background: rgba(245,158,11,.08); color: #78350f; border-color: rgba(245,158,11,.2); }
+.al-badge--blue     { background: rgba(59,130,246,.08); color: #1e40af; border-color: rgba(59,130,246,.2); }
+.al-badge--active   { background: rgba(245,158,11,.08); color: #78350f; border-color: rgba(245,158,11,.2); }
+.al-badge--resolved { background: #f1f5f9; color: var(--muted); border-color: var(--border); }
+
+/* Message */
+.al-card-msg {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 6px 0 10px;
+  line-height: 1.5;
   word-break: break-word;
 }
 
-.row3 { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
-.time { font-size: 12px; color: #64748b; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.muted { color: #94a3b8; font-weight: 700; }
-.actions { display: flex; gap: 8px; }
+/* Footer */
+.al-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.al-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.al-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.al-meta-sep { font-size: 11px; color: #cbd5e1; }
+.al-mono { font-family: monospace; font-size: .9em; }
+
+/* Action buttons */
+.al-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.al-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all .15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+
+.al-action-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+  border-color: #94a3b8;
+}
+
+.al-action-btn--resolve {
+  color: var(--green);
+  border-color: rgba(16,185,129,.25);
+}
+
+.al-action-btn--resolve:hover {
+  background: rgba(16,185,129,.06);
+  border-color: rgba(16,185,129,.4);
+  color: var(--green);
+}
+
+.al-action-btn--delete {
+  color: var(--red);
+  border-color: rgba(239,68,68,.2);
+  padding: 0 8px;
+}
+
+.al-action-btn--delete:hover {
+  background: rgba(239,68,68,.06);
+  border-color: rgba(239,68,68,.35);
+}
+
+/* ─── Skeleton ───────────────────────────── */
+@keyframes shimmer {
+  0%, 100% { opacity: .45; }
+  50%       { opacity: .85; }
+}
+
+.al-skel {
+  display: block;
+  background: #e2e8f0;
+  border-radius: 6px;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.al-skel-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  margin: 14px 0;
+  flex-shrink: 0;
+}
+
+.al-card-skeleton { pointer-events: none; }
+
+/* ─── Footer ─────────────────────────────── */
+.al-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.al-footer-text {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.al-footer-text b { font-weight: 700; color: var(--text); }
+
+/* ─── Responsive ─────────────────────────── */
+@media (max-width: 900px) {
+  .al-header { flex-direction: column; }
+  .al-header-right { width: 100%; }
+  .al-search { min-width: 0; flex: 1; }
+}
+
+@media (max-width: 640px) {
+  .al { padding: 14px; gap: 14px; }
+  .al-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .al-card-top { flex-direction: column; }
+  .al-card-footer { flex-direction: column; align-items: flex-start; }
+}
 </style>
