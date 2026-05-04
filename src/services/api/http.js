@@ -1,28 +1,24 @@
-// // src/services/api/http.js
-// import axios from "axios";
-
-// const api = axios.create({
-//   baseURL: import.meta.env.VITE_API_BASE,
-//   timeout: 15000
-// });
-
-// // Optional: log errors nicely
-// api.interceptors.response.use(
-//   (res) => res,
-//   (err) => {
-//     // keep default error but with cleaner message
-//     return Promise.reject(err);
-//   }
-// );
-
-// export default api;
-
-
 // src/services/api/http.js
 import axios from "axios";
 
-const API_BASE =
+export const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
+
+// Static base removes trailing /api
+// Example:
+// API_BASE = https://backend.up.railway.app/api
+// STATIC_BASE = https://backend.up.railway.app
+export const STATIC_BASE = API_BASE.replace(/\/api\/?$/, "");
+
+export function toStaticUrl(url) {
+  if (!url) return null;
+  if (String(url).startsWith("http")) return url;
+
+  const base = STATIC_BASE.replace(/\/$/, "");
+  const path = String(url).startsWith("/") ? url : `/${url}`;
+
+  return `${base}${path}`;
+}
 
 const api = axios.create({
   baseURL: API_BASE,
@@ -47,6 +43,5 @@ api.interceptors.response.use(
     return Promise.reject(error);
   }
 );
-
 
 export default api;
