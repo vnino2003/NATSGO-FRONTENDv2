@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 
 import DrawerMenu from "@/components/commuters/home/DrawerMenu.vue";
 import HomeHeader from "@/components/commuters/home/HomeHeader.vue";
@@ -35,14 +35,6 @@ const {
   markAllRead,
   dismiss,
   clear: clearNotifications,
-
-  /*
-    NEW:
-    These are from useNearbyBusAlerts.
-    This is what makes the popup dynamic.
-  */
-  latestPopupAlert,
-  popupEventId,
 } = useNearbyBusAlerts({
   intervalMs: 1500,
   maxNearest: 4,
@@ -57,6 +49,7 @@ let popupTimer = null;
 /*
   Sound helper.
   Uses Web Audio API para kahit wala kang mp3 file.
+  Note: browsers may block sound until user interacted with the page.
 */
 let audioCtx = null;
 
@@ -77,7 +70,6 @@ function playNearbySound() {
     const gain = audioCtx.createGain();
 
     oscillator.type = "sine";
-
     oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
     oscillator.frequency.setValueAtTime(660, audioCtx.currentTime + 0.12);
 
@@ -95,6 +87,10 @@ function playNearbySound() {
   }
 }
 
+const latestUnreadNotification = computed(() => {
+  return notifications.value.find((n) => !n.read) || notifications.value[0] || null;
+});
+
 function showNearbyPopup(notification) {
   if (!notification) return;
 
@@ -103,27 +99,20 @@ function showNearbyPopup(notification) {
 
   playNearbySound();
 
-  if (popupTimer) {
-    clearTimeout(popupTimer);
-  }
+  if (popupTimer) clearTimeout(popupTimer);
 
   popupTimer = setTimeout(() => {
     popupVisible.value = false;
   }, 5500);
 }
 
-/*
-  NEW DYNAMIC WATCHER:
-  Hindi na notification id ang basis.
-  Every time may real nearby bus event,
-  popupEventId increases, then lalabas popup.
-*/
 watch(
-  popupEventId,
-  () => {
-    if (!latestPopupAlert.value) return;
+  () => latestUnreadNotification.value?.id,
+  (newId, oldId) => {
+    if (!newId || newId === oldId) return;
 
-    showNearbyPopup(latestPopupAlert.value);
+    const item = latestUnreadNotification.value;
+    showNearbyPopup(item);
   }
 );
 
@@ -158,10 +147,7 @@ function dismissAdvisory(id) {
 
 function markAnnouncementRead(id) {
   const item = announcements.value.find((a) => a.id === id);
-
-  if (item) {
-    item.read = true;
-  }
+  if (item) item.read = true;
 }
 
 onMounted(async () => {
@@ -173,13 +159,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
-  if (updatesTimer) {
-    clearInterval(updatesTimer);
-  }
-
-  if (popupTimer) {
-    clearTimeout(popupTimer);
-  }
+  if (updatesTimer) clearInterval(updatesTimer);
+  if (popupTimer) clearTimeout(popupTimer);
 });
 </script>
 
@@ -219,10 +200,7 @@ onBeforeUnmount(() => {
     />
 
     <div class="page-content">
-      <p
-        v-if="loading && !announcements.length && !alerts.length"
-        class="updates-loading"
-      >
+      <p v-if="loading && !announcements.length && !alerts.length" class="updates-loading">
         Loading updates...
       </p>
 
@@ -230,7 +208,10 @@ onBeforeUnmount(() => {
         {{ error }}
       </p>
 
-      <WeatherCard :alerts="alerts" @dismiss="dismissAdvisory" />
+      <WeatherCard
+        :alerts="alerts"
+        @dismiss="dismissAdvisory"
+      />
 
       <HomeTabs
         :announcements="announcements"

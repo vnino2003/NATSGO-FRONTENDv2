@@ -17,7 +17,6 @@
           <h3 class="loc-title">{{ gateTitle }}</h3>
           <p class="loc-text">{{ gateText }}</p>
 
-          <!-- Status pill -->
           <div class="loc-status" :class="statusClass">
             <span v-if="status === 'idle'">
               <i class="fas fa-circle-info"></i>
@@ -45,7 +44,6 @@
             </span>
           </div>
 
-          <!-- Actions -->
           <button
             class="loc-btn primary"
             type="button"
@@ -60,7 +58,6 @@
             Use Without Location
           </button>
 
-          <!-- Denied help -->
           <div v-if="status === 'denied'" class="loc-help">
             <div class="loc-help-title">
               <i class="fas fa-gear"></i>
@@ -82,18 +79,18 @@
 
 <script setup>
 import "../assets/css/styles.css";
+
+import { computed, nextTick, onMounted, ref, watch } from "vue";
+
 import BottomNav from "../components/commuters/layout/BottomNav.vue";
-import { computed, onMounted, ref } from "vue";
+
 import { useUserLocation } from "@/composables/useUserLocation";
+import { useCommuterDriverTour } from "@/composables/useCommuterDriverTour";
 
 const { status, startLocation, getPermissionState } = useUserLocation();
+const { startTour } = useCommuterDriverTour();
 
 const dismissed = ref(false);
-
-/*
-  Prevents the location card from flashing on page refresh.
-  The card will stay hidden until permission checking is finished.
-*/
 const readyToShowGate = ref(false);
 
 const showGate = computed(() => {
@@ -150,31 +147,52 @@ function enableLocation() {
 
 function skipLocation() {
   dismissed.value = true;
+
+  nextTick(() => {
+    startTourIfReady();
+  });
 }
+
+function startTourIfReady() {
+  if (showGate.value) return;
+
+  nextTick(() => {
+    startTour(false);
+  });
+}
+
+watch(
+  () => status.value,
+  (newStatus) => {
+    if (newStatus === "connected") {
+      dismissed.value = true;
+
+      nextTick(() => {
+        startTourIfReady();
+      });
+    }
+  }
+);
 
 onMounted(async () => {
   try {
     const perm = await getPermissionState();
 
-    /*
-      If permission is already granted, do not show the card.
-      Start location silently in the background.
-    */
     if (perm === "granted") {
       dismissed.value = true;
+      readyToShowGate.value = true;
+
       startLocation({ highAccuracy: true });
+
+      nextTick(() => {
+        startTourIfReady();
+      });
+
       return;
     }
 
-    /*
-      Only show the card if location is not yet allowed.
-    */
     readyToShowGate.value = true;
   } catch (err) {
-    /*
-      If permission check fails, allow the card to show
-      so the user can manually turn on location.
-    */
     readyToShowGate.value = true;
   }
 });
@@ -295,7 +313,9 @@ onMounted(async () => {
   justify-content: center;
   gap: 7px;
   margin-top: 8px;
-  transition: transform 0.15s ease, box-shadow 0.15s ease,
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease,
     background 0.15s ease;
   -webkit-tap-highlight-color: transparent;
 }

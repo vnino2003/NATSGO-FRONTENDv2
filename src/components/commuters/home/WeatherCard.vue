@@ -1,6 +1,7 @@
 <!-- src/components/commuters/home/WeatherCard.vue -->
 <template>
-  <section class="weather-card" :class="`weather-card--${temperatureMode}`">
+  <section class="weather-card"    data-tour="weather-card"
+ :class="`weather-card--${temperatureMode}`">
     <div class="weather-card__glow"></div>
 
     <!-- Loading State -->

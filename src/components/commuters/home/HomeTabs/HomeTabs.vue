@@ -1,4 +1,6 @@
 <template>
+    <div class="home-tabs-wrap" data-tour="home-tabs">
+
   <div class="home-tabs-wrap">
 
     <!-- Pills -->
@@ -51,6 +53,8 @@
     </div>
 
   </div>
+    </div>
+
 </template>
 
 <script setup>

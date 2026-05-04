@@ -3,7 +3,8 @@
   <div class="explore-tab">
     <div class="services-grid">
       <!-- Track -->
-      <RouterLink to="/track-bus" class="service-card service-card--primary">
+      <RouterLink to="/track-bus" class="service-card service-card--primary"   data-tour="service-track"
+> 
         <div class="service-icon">
           <i class="fas fa-location-crosshairs"></i>
         </div>
@@ -17,7 +18,8 @@
       </RouterLink>
 
       <!-- Terminal -->
-      <RouterLink to="/terminal" class="service-card">
+      <RouterLink to="/terminal" class="service-card"   data-tour="service-terminal"
+>
         <div class="service-icon">
           <i class="fas fa-bus-alt"></i>
         </div>
@@ -33,6 +35,8 @@
       <!-- Facebook -->
       <a
         class="service-card"
+          data-tour="service-facebook"
+
         href="https://www.facebook.com/"
         target="_blank"
         rel="noopener noreferrer"
@@ -50,7 +54,8 @@
       </a>
 
       <!-- Help / Guide -->
-      <RouterLink to="/help" class="service-card">
+      <RouterLink to="/help" class="service-card"   data-tour="service-help"
+>
         <div class="service-icon">
           <i class="fas fa-circle-question"></i>
         </div>

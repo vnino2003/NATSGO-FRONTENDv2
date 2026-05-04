@@ -1,11 +1,15 @@
 <template>
-  <div class="page-header header-home">
+  <div class="page-header header-home" data-tour="home-header">
     <div class="header-top">
-      <button class="btn-menu" @click="$emit('open-drawer')">
+      <button
+        class="btn-menu"
+        data-tour="home-menu"
+        @click="$emit('open-drawer')"
+      >
         <i class="fas fa-bars"></i>
       </button>
 
-      <div class="search-box">
+      <div class="search-box" data-tour="home-search">
         <i class="fas fa-search"></i>
         <input
           type="text"
@@ -17,10 +21,16 @@
         <i class="fas fa-sliders-h"></i>
       </div>
 
-      <!-- bell w/ badge -->
-      <button class="btn-notification hh__bell" @click="$emit('open-notif')" type="button">
+      <button
+        class="btn-notification hh__bell"
+        data-tour="home-notification"
+        @click="$emit('open-notif')"
+        type="button"
+      >
         <i class="fas fa-bell"></i>
-        <span v-if="unread > 0" class="hh__badge">{{ unread > 99 ? "99+" : unread }}</span>
+        <span v-if="unread > 0" class="hh__badge">
+          {{ unread > 99 ? "99+" : unread }}
+        </span>
       </button>
     </div>
   </div>
@@ -31,13 +41,16 @@ defineProps({
   modelValue: { type: String, default: "" },
   unread: { type: Number, default: 0 },
 });
+
 defineEmits(["update:modelValue", "open-drawer", "open-notif"]);
 </script>
 
 <style scoped>
-.hh__bell{ position: relative; }
+.hh__bell {
+  position: relative;
+}
 
-.hh__badge{
+.hh__badge {
   position: absolute;
   top: -6px;
   right: -6px;
@@ -53,6 +66,6 @@ defineEmits(["update:modelValue", "open-drawer", "open-notif"]);
   color: #fff;
   background: #ef4444;
   border: 2px solid #fff;
-  box-shadow: 0 10px 20px rgba(239,68,68,0.25);
+  box-shadow: 0 10px 20px rgba(239, 68, 68, 0.25);
 }
 </style>

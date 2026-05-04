@@ -2,18 +2,31 @@
 <template>
   <div class="tb-page">
     <!-- Map -->
-    <div class="tb-map-wrap">
-      <div class="tb-map" ref="mapEl"></div>
+<div class="tb-map-wrap" data-tour="track-map">      <div class="tb-map" ref="mapEl"></div>
 
       <!-- Quick actions -->
-      <div class="tb-fab-stack">
-        <button class="tb-fab" type="button" @click="centerOnUser" aria-label="Center on me">
-          <i class="fas fa-crosshairs"></i>
-        </button>
-        <button class="tb-fab" type="button" @click="openSheetMid" aria-label="Open list">
-          <i class="fas fa-list"></i>
-        </button>
-      </div>
+<!-- Quick actions -->
+<div class="tb-fab-stack">
+  <button
+    class="tb-fab"
+    type="button"
+    @click="centerOnUser"
+    aria-label="Center on me"
+    data-tour="track-center-user"
+  >
+    <i class="fas fa-crosshairs"></i>
+  </button>
+
+  <button
+    class="tb-fab"
+    type="button"
+    @click="openSheetMid"
+    aria-label="Open list"
+    data-tour="track-open-list"
+  >
+    <i class="fas fa-list"></i>
+  </button>
+</div>
 
       <!-- Selected bus card -->
       <Transition name="slide-up">
@@ -188,8 +201,13 @@
     </div>
 
     <!-- Bottom sheet -->
-    <div class="tb-sheet" ref="sheetEl" :class="{ dragging: isDragging }" :style="sheetStyle">
-      <div class="tb-sheet-handle" ref="sheetHandleEl" @pointerdown="onSheetPointerDown">
+<div
+  class="tb-sheet"
+  data-tour="track-sheet"
+  ref="sheetEl"
+  :class="{ dragging: isDragging }"
+  :style="sheetStyle"
+>      <div class="tb-sheet-handle" ref="sheetHandleEl" @pointerdown="onSheetPointerDown">
         <div class="tb-sheet-pill-wrap">
           <div class="tb-sheet-pill"></div>
         </div>

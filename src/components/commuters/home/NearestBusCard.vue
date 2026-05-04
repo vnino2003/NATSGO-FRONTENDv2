@@ -1,6 +1,5 @@
 <template>
-  <div class="section nb">
-    <!-- Header -->
+<div class="section nb" data-tour="nearby-buses">    <!-- Header -->
     <div class="nb__head">
       <div class="nb__headLeft">
         <h3 class="nb__title">Nearby Buses</h3>

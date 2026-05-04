@@ -1,8 +1,9 @@
 <template>
-  <nav class="bottom-nav">
+  <nav class="bottom-nav" data-tour="bottom-nav">
     <RouterLink
       to="/home"
       class="nav-item"
+      data-tour="nav-home"
       :class="{ active: isActive('home') }"
     >
       <i class="fas fa-home"></i>
@@ -12,6 +13,7 @@
     <RouterLink
       to="/track-bus"
       class="nav-item"
+      data-tour="nav-track"
       :class="{ active: isActive('track') }"
     >
       <i class="fas fa-location-dot"></i>
@@ -19,17 +21,9 @@
     </RouterLink>
 
     <RouterLink
-      to="/routes"
-      class="nav-item"
-      :class="{ active: isActive('routes') }"
-    >
-      <i class="fas fa-map"></i>
-      <span>Routes</span>
-    </RouterLink>
-
-    <RouterLink
       to="/terminal"
       class="nav-item"
+      data-tour="nav-terminal"
       :class="{ active: isActive('terminal') }"
     >
       <i class="fas fa-bus"></i>
@@ -39,6 +33,7 @@
     <RouterLink
       to="/settings"
       class="nav-item"
+      data-tour="nav-settings"
       :class="{ active: isActive('settings') }"
     >
       <i class="fas fa-cog"></i>
@@ -48,10 +43,9 @@
 </template>
 
 <script setup>
-import { useRoute, RouterLink } from 'vue-router'
+import { useRoute, RouterLink } from "vue-router";
 
-const route = useRoute()
+const route = useRoute();
 
-const isActive = (name) => route.name === name
+const isActive = (name) => route.name === name;
 </script>
-

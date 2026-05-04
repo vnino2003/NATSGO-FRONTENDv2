@@ -3,8 +3,7 @@
   <div class="tp-page">
 
     <!-- ── Header ── -->
-    <div class="tp-header">
-      <div class="tp-header-top">
+<div class="tp-header" data-tour="terminal-header">      <div class="tp-header-top">
         <div class="tp-header-title-group">
           <span class="tp-label">Terminals</span>
           <span class="tp-count-pill">{{ filtered.length }}</span>
@@ -15,8 +14,7 @@
       </div>
 
       <!-- Search -->
-      <div class="tp-search">
-        <i class="fas fa-magnifying-glass tp-search-icon"></i>
+<div class="tp-search" data-tour="terminal-search">        <i class="fas fa-magnifying-glass tp-search-icon"></i>
         <input
           v-model="query"
           class="tp-search-input"
@@ -65,8 +63,7 @@
     </div>
 
     <!-- ── List ── -->
-    <div class="tp-list">
-      <button
+<div class="tp-list" data-tour="terminal-list">      <button
         v-for="t in filtered"
         :key="t.terminal_id"
         class="tp-card"

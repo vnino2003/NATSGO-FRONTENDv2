@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-     "dev:admin": "vite --host --mode admin",
+    "dev:admin": "vite --host --mode admin",
     "dev:commuter": "vite --host --mode commuter",
     "build:admin": "vite build --mode admin",
     "build:commuter": "vite build --mode commuter",
@@ -17,6 +17,7 @@
   "dependencies": {
     "axios": "^1.13.4",
     "chart.js": "^4.5.1",
+    "driver.js": "^1.4.0",
     "leaflet": "^1.9.4",
     "leaflet-draw": "^1.0.4",
     "pinia": "^3.0.4",
