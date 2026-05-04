@@ -74,8 +74,10 @@
               v-for="n in items"
               :key="n.id"
               class="nd__item"
-              :class="{ 'is-unread': !n.read }"
-              role="button"
+:class="[
+  { 'is-unread': !n.read },
+  `is-${n.gpsFreshness || n.meta?.gpsFreshness || 'live'}`
+]"              role="button"
               tabindex="0"
               @click="$emit('open', n)"
               @keydown.enter="$emit('open', n)"
@@ -468,7 +470,32 @@ const unreadCount = computed(() =>
   padding: 4px 10px;
   letter-spacing: 0.1px;
 }
+.nd__item.is-warning {
+  border-color: rgba(245, 158, 11, 0.28);
+  background: #fffbeb;
+}
 
+.nd__item.is-lastKnown,
+.nd__item.is-hidden {
+  border-color: rgba(156, 163, 175, 0.28);
+  background: #f9fafb;
+}
+
+.nd__item.is-warning .nd__item-icon-wrap {
+  background: #f59e0b;
+}
+
+.nd__item.is-lastKnown .nd__item-icon-wrap,
+.nd__item.is-hidden .nd__item-icon-wrap {
+  background: #9ca3af;
+}
+
+.nd__item.is-warning .nd__track-pill,
+.nd__item.is-lastKnown .nd__track-pill,
+.nd__item.is-hidden .nd__track-pill {
+  color: #6b7280;
+  background: #f3f4f6;
+}
 .nd__track-pill i {
   font-size: 9px;
 }

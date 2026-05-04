@@ -217,12 +217,14 @@ const MAX_VISIBLE = 4;
 const nearKm = 1.0;
 
 /*
-  Nearby behavior:
-  - <= 60s old: active nearby
-  - > 60s old: stale, still can show as last known
-  - > 30 mins old: hidden from Nearby Buses
+  GPS freshness behavior:
+  0–15 sec      = Live / normal nearby behavior
+  16 sec–5 mins = Last seen, warning style
+  5–30 mins     = Last known nearby, no alert
+  30+ mins      = hidden
 */
-const STALE_GPS_SECONDS = 60;
+const LIVE_GPS_SECONDS = 15;
+const WARNING_GPS_SECONDS = 5 * 60;
 const HIDE_OLD_GPS_SECONDS = 30 * 60;
 
 const router = useRouter();
@@ -240,7 +242,7 @@ const visibleNearestBuses = computed(() => {
   return nearestBuses.value.filter((bus) => {
     const age = getGpsAgeSeconds(bus);
 
-    if (!Number.isFinite(age)) return true;
+    if (!Number.isFinite(age)) return false;
 
     return age <= HIDE_OLD_GPS_SECONDS;
   });
@@ -348,7 +350,7 @@ function getGpsAgeSeconds(bus) {
 function formatAgo(seconds) {
   if (!Number.isFinite(seconds)) return "Last known location";
 
-  if (seconds < 10) return "Live now";
+  if (seconds <= LIVE_GPS_SECONDS) return "Live now";
   if (seconds < 60) return `Last seen ${seconds}s ago`;
 
   const mins = Math.floor(seconds / 60);
@@ -368,50 +370,72 @@ function formatAgo(seconds) {
   return `Last seen ${days} day${days > 1 ? "s" : ""} ago`;
 }
 
-function isGpsStale(bus) {
-  if (bus?.isLiveLocation === true) return false;
+function gpsFreshness(bus) {
+  const age = getGpsAgeSeconds(bus);
 
-  return getGpsAgeSeconds(bus) > STALE_GPS_SECONDS;
+  if (!Number.isFinite(age)) return "hidden";
+  if (age <= LIVE_GPS_SECONDS && bus?.isLiveLocation !== false) return "live";
+  if (age <= WARNING_GPS_SECONDS) return "warning";
+  if (age <= HIDE_OLD_GPS_SECONDS) return "lastKnown";
+
+  return "hidden";
 }
 
-function isGpsTooOld(bus) {
-  return getGpsAgeSeconds(bus) > HIDE_OLD_GPS_SECONDS;
+function isGpsLive(bus) {
+  return gpsFreshness(bus) === "live";
+}
+
+function isGpsWarning(bus) {
+  return gpsFreshness(bus) === "warning";
+}
+
+function isGpsLastKnown(bus) {
+  return gpsFreshness(bus) === "lastKnown";
+}
+
+function isGpsStale(bus) {
+  return isGpsWarning(bus) || isGpsLastKnown(bus);
 }
 
 function gpsStatusText(bus) {
-  if (isGpsTooOld(bus)) return "Old GPS location";
-  if (isGpsStale(bus)) return bus.locationLabel || formatAgo(getGpsAgeSeconds(bus));
+  const state = gpsFreshness(bus);
+  const age = getGpsAgeSeconds(bus);
 
-  return bus.locationLabel || "Live now";
+  if (state === "live") return bus.locationLabel || "Live now";
+  if (state === "warning") return bus.locationLabel || formatAgo(age);
+  if (state === "lastKnown") return bus.locationLabel || "Last known nearby";
+
+  return "Old GPS location";
 }
 
 function gpsStatusIcon(bus) {
-  if (isGpsStale(bus)) return "fas fa-clock";
-  return "fas fa-signal";
+  if (isGpsLive(bus)) return "fas fa-signal";
+  if (isGpsWarning(bus)) return "fas fa-clock";
+
+  return "fas fa-map-pin";
 }
 
 function isArriving(bus) {
-  if (isGpsStale(bus)) return false;
+  if (!isGpsLive(bus)) return false;
 
   return getBusKm(bus) <= 0.15;
 }
 
 function isVeryClose(bus) {
-  if (isGpsStale(bus)) return false;
+  if (!isGpsLive(bus)) return false;
 
   return getBusKm(bus) <= 0.35;
 }
 
 function isNearby(bus) {
-  if (isGpsStale(bus)) return false;
+  if (!isGpsLive(bus)) return false;
 
   return getBusKm(bus) <= 0.7;
 }
 
 function distLabel(bus) {
-  if (isGpsStale(bus)) {
-    return "Last known";
-  }
+  if (isGpsWarning(bus)) return "Last seen";
+  if (isGpsLastKnown(bus)) return "Last known";
 
   const km = getBusKm(bus);
 
@@ -423,7 +447,8 @@ function distLabel(bus) {
 }
 
 function distIcon(bus) {
-  if (isGpsStale(bus)) return "fas fa-clock";
+  if (isGpsWarning(bus)) return "fas fa-clock";
+  if (isGpsLastKnown(bus)) return "fas fa-map-pin";
 
   const km = getBusKm(bus);
 
@@ -434,7 +459,8 @@ function distIcon(bus) {
 }
 
 function distLabelClass(bus) {
-  if (isGpsStale(bus)) return "nb__distLabel--stale";
+  if (isGpsWarning(bus)) return "nb__distLabel--warning";
+  if (isGpsLastKnown(bus)) return "nb__distLabel--lastknown";
   if (isArriving(bus)) return "nb__distLabel--arriving";
   if (isVeryClose(bus)) return "nb__distLabel--close";
   if (isNearby(bus)) return "nb__distLabel--nearby";
@@ -443,7 +469,8 @@ function distLabelClass(bus) {
 }
 
 function proximityClass(bus) {
-  if (isGpsStale(bus)) return "nb__item--stale";
+  if (isGpsWarning(bus)) return "nb__item--warning";
+  if (isGpsLastKnown(bus)) return "nb__item--lastknown";
   if (isArriving(bus)) return "nb__item--arriving";
   if (isVeryClose(bus)) return "nb__item--close";
 
@@ -451,7 +478,8 @@ function proximityClass(bus) {
 }
 
 function badgeClass(bus) {
-  if (isGpsStale(bus)) return "nb__badge--stale";
+  if (isGpsWarning(bus)) return "nb__badge--warning";
+  if (isGpsLastKnown(bus)) return "nb__badge--lastknown";
   if (isArriving(bus)) return "nb__badge--arriving";
   if (isVeryClose(bus)) return "nb__badge--close";
 
@@ -463,7 +491,8 @@ function availableSeats(bus) {
 }
 
 function pillClass(bus) {
-  if (isGpsStale(bus)) return "pill-gray";
+  if (isGpsWarning(bus)) return "pill-yellow";
+  if (isGpsLastKnown(bus)) return "pill-gray";
 
   const avail = availableSeats(bus);
   const cap = Number(bus.capacity || 0);
@@ -476,7 +505,8 @@ function pillClass(bus) {
 }
 
 function pillText(bus) {
-  if (isGpsStale(bus)) return "LAST";
+  if (isGpsWarning(bus)) return "SEEN";
+  if (isGpsLastKnown(bus)) return "LAST";
 
   const avail = availableSeats(bus);
   const cap = Number(bus.capacity || 0);
@@ -515,6 +545,60 @@ function pillText(bus) {
   font-weight: 700;
   color: #111827;
   letter-spacing: -0.01em;
+}
+
+.nb__item--warning {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: #fffbeb;
+}
+
+.nb__item--warning::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 14px 0 0 14px;
+  background: #f59e0b;
+}
+
+.nb__item--lastknown {
+  border-color: #e5e7eb;
+  background: #fafafa;
+}
+
+.nb__item--lastknown::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 14px 0 0 14px;
+  background: #9ca3af;
+}
+
+.nb__badge--warning {
+  background: #fffbeb;
+  color: #b45309;
+}
+
+.nb__badge--lastknown {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.nb__distLabel--warning {
+  color: #b45309;
+}
+
+.nb__distLabel--lastknown {
+  color: #6b7280;
+}
+
+.nb__gpsStatus.stale {
+  color: #92400e;
 }
 
 .nb__count {
