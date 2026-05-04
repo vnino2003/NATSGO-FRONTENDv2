@@ -17,7 +17,6 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
   let timer = null;
 
   const lastGoodByBusId = new Map();
-  const gpsLostAtByBusId = new Map();
 
   function cleanName(v) {
     const s = String(v ?? "").trim();
@@ -39,15 +38,10 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
     return Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
   }
 
-  function secondsAgoMs(ms) {
-    if (!Number.isFinite(ms)) return Infinity;
-
-    return Math.max(0, Math.floor((Date.now() - ms) / 1000));
-  }
-
   function formatAgo(seconds) {
     if (!Number.isFinite(seconds)) return "Last location";
-    if (seconds < 10) return "Just now";
+
+    if (seconds < 10) return "Live just now";
     if (seconds < 60) return `Last seen ${seconds}s ago`;
 
     const mins = Math.floor(seconds / 60);
@@ -88,7 +82,6 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
 
   function isBusOk(row) {
     const s = String(row?.bus_status || "active").toLowerCase();
-
     return ["active", "online", "in_service"].includes(s);
   }
 
@@ -96,12 +89,6 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
     const status = String(row?.device_status || "").toLowerCase();
     const onlineFlag = Number(row?.is_online ?? 0) === 1;
 
-    /*
-      Device should hide only when it is truly offline.
-
-      If status is online/warning, keep bus visible even if GPS logs stopped.
-      If status is offline and is_online is also 0, hide it.
-    */
     if (status === "offline" && !onlineFlag) return false;
 
     return status === "online" || status === "warning" || onlineFlag;
@@ -112,27 +99,6 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
     const gpsAge = secondsAgo(row?.updated_at);
 
     return gpsState === "active" && gpsAge <= LIVE_GPS_SECONDS && hasCoords(row);
-  }
-
-  function getGpsLossAgeSeconds(row, fallback, isLiveLocation) {
-    const busId = row?.bus_id;
-
-    if (!busId) return Infinity;
-
-    if (isLiveLocation) {
-      gpsLostAtByBusId.delete(busId);
-      return 0;
-    }
-
-    if (!gpsLostAtByBusId.has(busId)) {
-      gpsLostAtByBusId.set(busId, Date.now());
-
-      if (fallback?.isLiveLocation === true) {
-        return 0;
-      }
-    }
-
-    return secondsAgoMs(gpsLostAtByBusId.get(busId));
   }
 
   function normalize(row, fallback = null) {
@@ -152,9 +118,30 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
       ? Number(row.lng)
       : fallback?.lng ?? null;
 
+    /*
+      IMPORTANT:
+      This must be the actual GPS recorded_at from database.
+      Do not use Date.now() here.
+      This prevents refresh from resetting "Last seen 1 hr ago" back to "Just now".
+    */
     const safeUpdatedAt = currentRowHasValidGps
       ? row.updated_at
       : fallback?.updatedAt ?? row.updated_at ?? null;
+
+    const gpsAgeSec = secondsAgo(safeUpdatedAt);
+
+    const liveCheckRow = {
+      ...row,
+      lat: safeLat,
+      lng: safeLng,
+      updated_at: safeUpdatedAt,
+    };
+
+    const isLiveLocation = isGpsLive(liveCheckRow);
+
+    const locationLabel = isLiveLocation
+      ? "Live now"
+      : formatAgo(gpsAgeSec);
 
     const route = row.bus_code
       ? `${row.bus_code} • ${row.plate_no || ""}`.trim()
@@ -215,20 +202,7 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
         ? `On route: ${currentTerminalName} → ${targetTerminalName}`
         : "On route";
 
-    const liveCheckRow = {
-      ...row,
-      lat: safeLat,
-      lng: safeLng,
-      updated_at: safeUpdatedAt,
-    };
-
-    const isLiveLocation = isGpsLive(liveCheckRow);
-    const gpsLossAgeSec = getGpsLossAgeSeconds(row, fallback, isLiveLocation);
     const telemetryAgeSec = secondsAgo(row.last_seen_at);
-
-    const locationLabel = isLiveLocation
-      ? "Live now"
-      : formatAgo(gpsLossAgeSec);
 
     return {
       id: row.bus_id,
@@ -285,7 +259,7 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
 
       isLiveLocation,
       locationLabel,
-      gpsLossAgeSec,
+      gpsLossAgeSec: gpsAgeSec,
       telemetryAgeSec,
 
       currentTerminalId,
@@ -323,7 +297,6 @@ export function useLiveBuses({ intervalMs = 1000 } = {}) {
 
         if (!isDeviceOnline(row)) {
           lastGoodByBusId.delete(row.bus_id);
-          gpsLostAtByBusId.delete(row.bus_id);
           continue;
         }
 
