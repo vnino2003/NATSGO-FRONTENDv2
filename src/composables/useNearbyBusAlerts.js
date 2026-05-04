@@ -1,10 +1,9 @@
-// src/composables/useNearbyBusAlerts.js
 import { computed, ref, watch } from "vue";
 import { useUserLocation } from "@/composables/useUserLocation";
 import { useLiveBuses } from "@/composables/useLiveBuses";
 
-const notifKey = "near_bus_notifs_items_v8";
-const stateKey = "near_bus_notif_state_v8";
+const notifKey = "near_bus_notifs_items_v9";
+const stateKey = "near_bus_notif_state_v9";
 
 const LIVE_GPS_SECONDS = 15;
 const WARNING_GPS_SECONDS = 5 * 60;
@@ -27,6 +26,26 @@ const notifications = ref(
 
 const notifState = ref(safeJsonParse(localStorage.getItem(stateKey), {}) || {});
 
+/*
+  NEW:
+  This is the real popup trigger.
+  Kahit same notification id ang na-update,
+  tataas ang popupEventId para mag-trigger sa HomePage.
+*/
+const latestPopupAlert = ref(null);
+const popupEventId = ref(0);
+
+function triggerPopup(notification) {
+  if (!notification) return;
+
+  latestPopupAlert.value = {
+    ...notification,
+    popupTriggeredAt: Date.now(),
+  };
+
+  popupEventId.value += 1;
+}
+
 function saveNotifs() {
   localStorage.setItem(notifKey, JSON.stringify(notifications.value));
 }
@@ -44,7 +63,10 @@ function haversineKm(a, b) {
 
   const x =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLon / 2) * Math.sin(dLon / 2) * Math.cos(lat1) * Math.cos(lat2);
+    Math.sin(dLon / 2) *
+      Math.sin(dLon / 2) *
+      Math.cos(lat1) *
+      Math.cos(lat2);
 
   const c = 2 * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
 
@@ -107,10 +129,6 @@ function canTriggerNearbyAlert(bus) {
   return gpsFreshness(bus) === "live";
 }
 
-function canShowInNearbyList(bus) {
-  return gpsFreshness(bus) !== "hidden";
-}
-
 function fmtTimeAgo(d) {
   const diff = Math.max(0, Date.now() - d.getTime());
   const s = Math.floor(diff / 1000);
@@ -143,19 +161,32 @@ function formatGpsAge(bus) {
 }
 
 function getBusId(bus) {
-  return String(bus?.id ?? bus?.bus_id ?? "");
+  return String(bus?.id ?? bus?.bus_id ?? bus?.busId ?? "");
 }
 
 function getNotificationBusId(n) {
-  return String(n?.busId ?? n?.meta?.bus_id ?? n?.bus?.id ?? "");
+  return String(n?.busId ?? n?.meta?.bus_id ?? n?.bus?.id ?? n?.bus?.bus_id ?? "");
 }
 
 function buildNotifText(bus, busId, mode = "near") {
-  const label = bus.trackNo || bus.bus_code || "Bus";
+  const label =
+    bus.trackNo ||
+    bus.track_no ||
+    bus.bus_code ||
+    bus.busCode ||
+    bus.plate_no ||
+    "Bus";
+
+  const routeText =
+    bus.route ||
+    bus.route_name ||
+    bus.routeName ||
+    bus.plate_no ||
+    `Bus #${busId}`;
 
   return {
     title: mode === "still" ? `${label} is still nearby` : `${label} is near`,
-    msg: `${bus.kmText} away • ${bus.route || bus.plate_no || `Bus #${busId}`} • ${formatGpsAge(bus)}`,
+    msg: `${bus.kmText} away • ${routeText} • ${formatGpsAge(bus)}`,
   };
 }
 
@@ -167,14 +198,9 @@ export function useNearbyBusAlerts({
 } = {}) {
   const { coords, hasLocation, status, startLocation } = useUserLocation();
 
-  const {
-    buses,
-    start,
-    stop,
-    fetchOnce,
-    loading,
-    error,
-  } = useLiveBuses({ intervalMs });
+  const { buses, start, stop, fetchOnce, loading, error } = useLiveBuses({
+    intervalMs,
+  });
 
   const unreadCount = computed(() =>
     notifications.value.reduce((acc, n) => acc + (n.read ? 0 : 1), 0)
@@ -186,7 +212,11 @@ export function useNearbyBusAlerts({
     const user = coords.value;
 
     return (buses.value || [])
-      .filter((b) => Number.isFinite(Number(b.lat)) && Number.isFinite(Number(b.lng)))
+      .filter(
+        (b) =>
+          Number.isFinite(Number(b.lat)) &&
+          Number.isFinite(Number(b.lng))
+      )
       .map((b) => {
         const km = haversineKm(user, {
           lat: Number(b.lat),
@@ -200,7 +230,8 @@ export function useNearbyBusAlerts({
           ...b,
           km,
           distanceKm: km,
-          kmText: km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
+          kmText:
+            km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`,
           gpsAgeSec,
           gpsFreshness: freshness,
           canAlertNearby: freshness === "live",
@@ -217,7 +248,6 @@ export function useNearbyBusAlerts({
 
     notifications.value = notifications.value.filter((n) => {
       const freshness = gpsFreshness(n.bus);
-
       return freshness !== "hidden";
     });
 
@@ -226,19 +256,19 @@ export function useNearbyBusAlerts({
     }
   }
 
-  function addNotif({ bus, title, msg, now, forceNew = false }) {
+  function addNotif({ bus, title, msg, now, forceNew = false, shouldPopup = true }) {
     const busId = getBusId(bus);
 
-    if (!busId) return;
-    if (!canTriggerNearbyAlert(bus)) return;
+    if (!busId) return null;
+    if (!canTriggerNearbyAlert(bus)) return null;
 
     const existingIndex = notifications.value.findIndex(
       (n) => getNotificationBusId(n) === busId
     );
 
-    if (existingIndex !== -1 && !forceNew) return;
+    if (existingIndex !== -1 && !forceNew) return null;
 
-    notifications.value.unshift({
+    const notification = {
       id: `near-${busId}-${now}`,
       type: "nearby_bus",
       busId,
@@ -258,16 +288,24 @@ export function useNearbyBusAlerts({
         gpsAgeSec: getGpsAgeSeconds(bus),
         gpsFreshness: gpsFreshness(bus),
       },
-    });
+    };
+
+    notifications.value.unshift(notification);
 
     if (notifications.value.length > 30) {
       notifications.value = notifications.value.slice(0, 30);
     }
 
     saveNotifs();
+
+    if (shouldPopup) {
+      triggerPopup(notification);
+    }
+
+    return notification;
   }
 
-  function updateExistingNotif({ bus, title, msg, now }) {
+  function updateExistingNotif({ bus, title, msg, now, shouldPopup = true }) {
     const busId = getBusId(bus);
 
     if (!busId) return false;
@@ -279,7 +317,7 @@ export function useNearbyBusAlerts({
 
     if (index === -1) return false;
 
-    notifications.value[index] = {
+    const updatedNotification = {
       ...notifications.value[index],
       bus,
       title,
@@ -300,7 +338,20 @@ export function useNearbyBusAlerts({
       },
     };
 
+    notifications.value[index] = updatedNotification;
+
+    /*
+      Move updated notification to top.
+      Mas natural sa notification drawer.
+    */
+    notifications.value.splice(index, 1);
+    notifications.value.unshift(updatedNotification);
+
     saveNotifs();
+
+    if (shouldPopup) {
+      triggerPopup(updatedNotification);
+    }
 
     return true;
   }
@@ -313,11 +364,9 @@ export function useNearbyBusAlerts({
       if (!(bus.km <= nearKm)) continue;
 
       /*
-        IMPORTANT:
-        Notifications only for 0–15 seconds live GPS.
-        16 sec–5 mins = nearby card warning only.
-        5–30 mins = nearby card last known only.
-        30+ mins = hidden.
+        Popup/notification only kapag live GPS.
+        Warning/lastKnown can still show sa nearby cards,
+        pero hindi dapat mag-alert popup.
       */
       if (!canTriggerNearbyAlert(bus)) continue;
 
@@ -337,63 +386,87 @@ export function useNearbyBusAlerts({
       const hasVisibleNotif = existingIndex !== -1;
       const cooldownPassed = !state.lastAt || now - state.lastAt >= cooldownMs;
 
+      /*
+        First time nearby.
+      */
       if (!state.everNotified && !hasVisibleNotif) {
         const text = buildNotifText(bus, busId, "near");
 
-        addNotif({
+        const created = addNotif({
           bus,
           title: text.title,
           msg: text.msg,
           now,
+          shouldPopup: true,
         });
 
-        notifState.value[busId] = {
-          lastAt: now,
-          everNotified: true,
-        };
+        if (created) {
+          notifState.value[busId] = {
+            lastAt: now,
+            everNotified: true,
+          };
 
-        changedState = true;
+          changedState = true;
+        }
+
         continue;
       }
 
+      /*
+        Existing notification, pero cooldown passed.
+        IMPORTANT:
+        Dati same id ito kaya hindi nagpa-popup sa HomePage watcher.
+        Ngayon may popupEventId na, so magpa-popup na ulit.
+      */
       if (hasVisibleNotif && cooldownPassed) {
         const text = buildNotifText(bus, busId, "still");
 
-        updateExistingNotif({
+        const updated = updateExistingNotif({
           bus,
           title: text.title,
           msg: text.msg,
           now,
+          shouldPopup: true,
         });
 
-        notifState.value[busId] = {
-          ...state,
-          lastAt: now,
-          everNotified: true,
-        };
+        if (updated) {
+          notifState.value[busId] = {
+            ...state,
+            lastAt: now,
+            everNotified: true,
+          };
 
-        changedState = true;
+          changedState = true;
+        }
+
         continue;
       }
 
+      /*
+        Notification was cleared/dismissed, but same bus is still nearby
+        and cooldown passed.
+      */
       if (!hasVisibleNotif && state.everNotified && cooldownPassed) {
         const text = buildNotifText(bus, busId, "still");
 
-        addNotif({
+        const created = addNotif({
           bus,
           title: text.title,
           msg: text.msg,
           now,
           forceNew: true,
+          shouldPopup: true,
         });
 
-        notifState.value[busId] = {
-          ...state,
-          lastAt: now,
-          everNotified: true,
-        };
+        if (created) {
+          notifState.value[busId] = {
+            ...state,
+            lastAt: now,
+            everNotified: true,
+          };
 
-        changedState = true;
+          changedState = true;
+        }
       }
     }
 
@@ -473,17 +546,13 @@ export function useNearbyBusAlerts({
         canTriggerNearbyAlert(b)
     );
 
+    /*
+      Do not instantly recreate after dismiss.
+      Mas okay behavior: dismissed means user closed it.
+      It will only come back after cooldown through maybeCreateNearBusNotifs.
+    */
     if (bus) {
       const now = Date.now();
-      const text = buildNotifText(bus, busId, "still");
-
-      addNotif({
-        bus,
-        title: text.title,
-        msg: text.msg,
-        now,
-        forceNew: true,
-      });
 
       notifState.value[busId] = {
         ...(notifState.value[busId] || {}),
@@ -503,6 +572,8 @@ export function useNearbyBusAlerts({
   function resetNearbyNotificationMemory() {
     notifications.value = [];
     notifState.value = {};
+    latestPopupAlert.value = null;
+    popupEventId.value = 0;
 
     saveNotifs();
     saveNotifState();
@@ -536,5 +607,12 @@ export function useNearbyBusAlerts({
     dismiss,
     clear,
     resetNearbyNotificationMemory,
+
+    /*
+      NEW:
+      HomePage should watch this for popup.
+    */
+    latestPopupAlert,
+    popupEventId,
   };
 }
