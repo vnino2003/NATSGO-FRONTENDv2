@@ -1,21 +1,22 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from "vue";
+import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 
-import DrawerMenu         from "@/components/commuters/home/DrawerMenu.vue";
-import HomeHeader         from "@/components/commuters/home/HomeHeader.vue";
-import AuthModal          from "@/components/commuters/authModal/AuthModal.vue";
-import WeatherCard        from "@/components/commuters/home/WeatherCard.vue";
-import HomeTabs           from "@/components/commuters/home/HomeTabs/HomeTabs.vue";
+import DrawerMenu from "@/components/commuters/home/DrawerMenu.vue";
+import HomeHeader from "@/components/commuters/home/HomeHeader.vue";
+import AuthModal from "@/components/commuters/authModal/AuthModal.vue";
+import WeatherCard from "@/components/commuters/home/WeatherCard.vue";
+import HomeTabs from "@/components/commuters/home/HomeTabs/HomeTabs.vue";
 import NotificationDrawer from "@/components/commuters/home/NotificationDrawer.vue";
 import CriticalAlertModal from "@/components/commuters/home/CriticalAlertModal.vue";
+import NearbyBusAlertPopup from "@/components/commuters/home/NearbyBusAlertPopup.vue";
 
 import { useNearbyBusAlerts } from "@/composables/useNearbyBusAlerts";
 import { useUpdates } from "@/composables/useUpdates";
 
 const drawerOpen = ref(false);
-const authOpen   = ref(false);
-const notifOpen  = ref(false);
-const search     = ref("");
+const authOpen = ref(false);
+const notifOpen = ref(false);
+const search = ref("");
 
 const {
   announcements,
@@ -38,12 +39,97 @@ const {
   intervalMs: 1500,
   maxNearest: 4,
   nearKm: 1.0,
-  cooldownMs: 300000, // 5 minutes
-// dismissCooldownMs: 10000,
-// clearCooldownMs: 10000,
+  cooldownMs: 300000,
 });
+
+const popupVisible = ref(false);
+const activeNearbyAlert = ref(null);
+let popupTimer = null;
+
+/*
+  Sound helper.
+  Uses Web Audio API para kahit wala kang mp3 file.
+  Note: browsers may block sound until user interacted with the page.
+*/
+let audioCtx = null;
+
+function playNearbySound() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+
+    if (!audioCtx) {
+      audioCtx = new AudioContext();
+    }
+
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+
+    const oscillator = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+    oscillator.frequency.setValueAtTime(660, audioCtx.currentTime + 0.12);
+
+    gain.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, audioCtx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.38);
+
+    oscillator.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    oscillator.start();
+    oscillator.stop(audioCtx.currentTime + 0.4);
+  } catch (err) {
+    console.warn("Nearby alert sound blocked or unavailable:", err);
+  }
+}
+
+const latestUnreadNotification = computed(() => {
+  return notifications.value.find((n) => !n.read) || notifications.value[0] || null;
+});
+
+function showNearbyPopup(notification) {
+  if (!notification) return;
+
+  activeNearbyAlert.value = notification;
+  popupVisible.value = true;
+
+  playNearbySound();
+
+  if (popupTimer) clearTimeout(popupTimer);
+
+  popupTimer = setTimeout(() => {
+    popupVisible.value = false;
+  }, 5500);
+}
+
+watch(
+  () => latestUnreadNotification.value?.id,
+  (newId, oldId) => {
+    if (!newId || newId === oldId) return;
+
+    const item = latestUnreadNotification.value;
+    showNearbyPopup(item);
+  }
+);
+
 function openNotif(n) {
+  if (!n) return;
+
   markRead(n.id);
+  notifOpen.value = true;
+  popupVisible.value = false;
+}
+
+function closeNearbyPopup(n) {
+  popupVisible.value = false;
+
+  if (n?.id) {
+    markRead(n.id);
+  }
 }
 
 const criticalAlert = ref({
@@ -74,21 +160,36 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (updatesTimer) clearInterval(updatesTimer);
+  if (popupTimer) clearTimeout(popupTimer);
 });
 </script>
+
 <template>
   <DrawerMenu v-model="drawerOpen" @open-auth="authOpen = true" />
 
- <NotificationDrawer
-  v-model="notifOpen"
-  :items="notifications"
-  @open="openNotif"
-  @dismiss="dismiss"
-  @mark-all-read="markAllRead"
-  @clear="clearNotifications"
-/>
+  <NotificationDrawer
+    v-model="notifOpen"
+    :items="notifications"
+    @open="openNotif"
+    @dismiss="dismiss"
+    @mark-all-read="markAllRead"
+    @clear="clearNotifications"
+  />
 
   <AuthModal v-model="authOpen" />
+
+  <NearbyBusAlertPopup
+    :visible="popupVisible"
+    :alert="activeNearbyAlert"
+    @open="openNotif"
+    @close="closeNearbyPopup"
+  />
+
+  <CriticalAlertModal
+    v-if="criticalAlert.show"
+    :alert="criticalAlert"
+    @close="criticalAlert.show = false"
+  />
 
   <div id="home" class="page active">
     <HomeHeader
