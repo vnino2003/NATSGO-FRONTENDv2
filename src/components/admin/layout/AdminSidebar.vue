@@ -99,7 +99,7 @@
 
       <RouterLink class="as-item" to="/admin/analytics">
         <i class="fas fa-chart-pie"></i>
-        <span v-if="!collapsed">Analytics</span>
+        <span v-if="!collapsed">Reports</span>
       </RouterLink>
 
       <!-- System -->
