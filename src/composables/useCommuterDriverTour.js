@@ -100,6 +100,238 @@ function stopCapyTalking() {
   }
 }
 
+/* =========================
+   Tour Complete Celebration
+========================= */
+
+function injectTourCelebrationStyle() {
+  if (document.getElementById("natsgo-tour-celebration-style")) return;
+
+  const style = document.createElement("style");
+  style.id = "natsgo-tour-celebration-style";
+  style.textContent = `
+    .tour-complete-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(15, 23, 42, 0.38);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      animation: tourFadeIn 0.25s ease both;
+    }
+
+    .tour-complete-card {
+      position: relative;
+      width: min(360px, 100%);
+      overflow: hidden;
+      border-radius: 26px;
+      background:
+        radial-gradient(circle at top left, rgba(96, 165, 250, 0.26), transparent 35%),
+        radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.2), transparent 35%),
+        #ffffff;
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 24px 70px rgba(15, 23, 42, 0.22);
+      padding: 26px 22px 22px;
+      text-align: center;
+      animation: tourPopIn 0.38s cubic-bezier(.2,.9,.2,1.2) both;
+    }
+
+    .tour-complete-confetti {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .tour-complete-confetti span {
+      position: absolute;
+      top: -22px;
+      font-size: 18px;
+      animation: tourConfettiFall 1.9s linear infinite;
+      opacity: 0.9;
+    }
+
+    .tour-complete-confetti span:nth-child(1) { left: 8%; animation-delay: 0s; }
+    .tour-complete-confetti span:nth-child(2) { left: 18%; animation-delay: .3s; }
+    .tour-complete-confetti span:nth-child(3) { left: 31%; animation-delay: .1s; }
+    .tour-complete-confetti span:nth-child(4) { left: 45%; animation-delay: .45s; }
+    .tour-complete-confetti span:nth-child(5) { left: 58%; animation-delay: .15s; }
+    .tour-complete-confetti span:nth-child(6) { left: 72%; animation-delay: .35s; }
+    .tour-complete-confetti span:nth-child(7) { left: 85%; animation-delay: .05s; }
+    .tour-complete-confetti span:nth-child(8) { left: 94%; animation-delay: .5s; }
+
+    .tour-complete-badge {
+      width: 76px;
+      height: 76px;
+      margin: 0 auto 14px;
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #2563eb, #22c55e);
+      color: #fff;
+      font-size: 32px;
+      box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
+      animation: tourBadgeBounce 0.9s ease infinite alternate;
+    }
+
+    .tour-complete-progress {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 11px;
+      border-radius: 999px;
+      background: #eff6ff;
+      color: #2563eb;
+      font-size: 12px;
+      font-weight: 800;
+      margin-bottom: 10px;
+    }
+
+    .tour-complete-title {
+      margin: 0;
+      color: #0f172a;
+      font-size: 21px;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+    }
+
+    .tour-complete-text {
+      margin: 8px auto 18px;
+      max-width: 270px;
+      color: #64748b;
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.55;
+    }
+
+    .tour-complete-btn {
+      width: 100%;
+      border: 0;
+      border-radius: 15px;
+      padding: 13px 16px;
+      background: #2563eb;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      cursor: pointer;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .tour-complete-btn:active {
+      transform: scale(0.97);
+      box-shadow: 0 6px 14px rgba(37, 99, 235, 0.2);
+    }
+
+    @keyframes tourFadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes tourPopIn {
+      from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.94);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes tourBadgeBounce {
+      from { transform: translateY(0) rotate(-3deg); }
+      to { transform: translateY(-5px) rotate(3deg); }
+    }
+
+    @keyframes tourConfettiFall {
+      0% {
+        transform: translateY(-20px) rotate(0deg);
+        opacity: 0;
+      }
+      15% {
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(390px) rotate(260deg);
+        opacity: 0;
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function showTourCompleteCelebration(totalSteps = 19) {
+  injectTourCelebrationStyle();
+
+  const oldOverlay = document.querySelector(".tour-complete-overlay");
+  if (oldOverlay) oldOverlay.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "tour-complete-overlay";
+
+  overlay.innerHTML = `
+    <div class="tour-complete-card">
+      <div class="tour-complete-confetti" aria-hidden="true">
+        <span>🎉</span>
+        <span>✨</span>
+        <span>🎊</span>
+        <span>⭐</span>
+        <span>🎉</span>
+        <span>✨</span>
+        <span>🎊</span>
+        <span>⭐</span>
+      </div>
+
+      <div class="tour-complete-badge">
+        <i class="fas fa-check"></i>
+      </div>
+
+      <div class="tour-complete-progress">
+        <i class="fas fa-flag-checkered"></i>
+        ${totalSteps}/${totalSteps} Complete
+      </div>
+
+      <h2 class="tour-complete-title">You’re all set!</h2>
+
+      <p class="tour-complete-text">
+        Nice! You finished the NatsGo app guide. You can now use the main features confidently.
+      </p>
+
+      <button class="tour-complete-btn" type="button" data-close-tour-complete>
+        Start Using NatsGo
+      </button>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const closeBtn = overlay.querySelector("[data-close-tour-complete]");
+
+  function closeCelebration() {
+    overlay.style.opacity = "0";
+    overlay.style.transition = "opacity 0.2s ease";
+
+    setTimeout(() => {
+      overlay.remove();
+    }, 220);
+  }
+
+  closeBtn?.addEventListener("click", closeCelebration);
+
+  setTimeout(() => {
+    if (document.body.contains(overlay)) {
+      closeCelebration();
+    }
+  }, 4500);
+}
+
 export function useCommuterDriverTour() {
   const router = useRouter();
 
@@ -177,7 +409,6 @@ export function useCommuterDriverTour() {
       },
     },
 
-    /* Explore guide */
     {
       route: "/home",
       element: '[data-tour="service-track"]',
@@ -226,7 +457,6 @@ export function useCommuterDriverTour() {
         align: "center",
       },
     },
-
     {
       route: "/home",
       element: '[data-tour="nearby-buses"]',
@@ -345,6 +575,19 @@ export function useCommuterDriverTour() {
     await nextTick();
   }
 
+  function finishTour(driverObj) {
+    stopCapyTalking();
+    localStorage.setItem(TOUR_KEY, "true");
+
+    if (driverObj) {
+      driverObj.destroy();
+    }
+
+    setTimeout(() => {
+      showTourCompleteCelebration(steps.length);
+    }, 180);
+  }
+
   function createDriver(force = false) {
     const completed = localStorage.getItem(TOUR_KEY) === "true";
 
@@ -373,8 +616,14 @@ export function useCommuterDriverTour() {
       onNextClick: async (_element, _step, options) => {
         stopCapyTalking();
 
-        const nextIndex = options.state.activeIndex + 1;
+        const currentIndex = options.state.activeIndex;
+        const nextIndex = currentIndex + 1;
         const nextStep = steps[nextIndex];
+
+        if (nextIndex >= steps.length) {
+          finishTour(driverObj);
+          return;
+        }
 
         if (nextStep?.route) {
           await goToStepRoute(nextStep);
@@ -408,7 +657,6 @@ export function useCommuterDriverTour() {
 
       onDestroyed: () => {
         stopCapyTalking();
-        localStorage.setItem(TOUR_KEY, "true");
       },
     });
 
