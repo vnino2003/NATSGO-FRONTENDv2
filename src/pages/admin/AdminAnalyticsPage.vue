@@ -549,14 +549,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
-import {
-  getReportsSummary,
-  getRevenueReport,
-  getCommuterReport,
-  getAssignmentReport,
-  getGpsActivityReport,
-  getFareCollectionReport,
-} from "@/services/api/reportsService";
+import { useReports } from "@/composables/useReports";
 
 const dateRange = ref("month");
 const activeTab = ref("revenue");
@@ -564,8 +557,25 @@ const busSearch = ref("");
 const sortKey = ref("totalRev");
 const sortDir = ref("desc");
 
-const loading = ref(false);
-const error = ref("");
+const {
+  loading,
+  error,
+
+  summaryData,
+  revenueReport,
+  commuterReport,
+  assignmentReport,
+  gpsReport,
+  fareReport,
+
+  assignmentRows,
+  revenueRows,
+  commuterRows,
+  gpsRows,
+  fareRows,
+
+  loadReports,
+} = useReports();
 
 const reportTabs = [
   { key: "revenue", label: "Revenue", icon: "fas fa-peso-sign" },
@@ -574,13 +584,6 @@ const reportTabs = [
   { key: "gps", label: "GPS Activity", icon: "fas fa-satellite-dish" },
   { key: "fare", label: "Fare Collection", icon: "fas fa-coins" },
 ];
-
-const summaryData = ref(null);
-const revenueReport = ref(null);
-const commuterReport = ref(null);
-const assignmentReport = ref(null);
-const gpsReport = ref(null);
-const fareReport = ref(null);
 
 const nowLabel = computed(() => {
   const d = new Date();
@@ -662,68 +665,17 @@ function safeText(value, fallback = "N/A") {
   return value;
 }
 
-async function loadReports() {
-  loading.value = true;
-  error.value = "";
-
-  try {
-    const [
-      summaryRes,
-      revenueRes,
-      commuterRes,
-      assignmentRes,
-      gpsRes,
-      fareRes,
-    ] = await Promise.all([
-      getReportsSummary(dateRange.value),
-      getRevenueReport(dateRange.value),
-      getCommuterReport(dateRange.value),
-      getAssignmentReport(),
-      getGpsActivityReport(),
-      getFareCollectionReport(dateRange.value),
-    ]);
-
-    summaryData.value = summaryRes.data;
-    revenueReport.value = revenueRes.data;
-    commuterReport.value = commuterRes.data;
-    assignmentReport.value = assignmentRes.data;
-    gpsReport.value = gpsRes.data;
-    fareReport.value = fareRes.data;
-  } catch (err) {
-    console.error("loadReports error:", err);
-
-    error.value =
-      err?.response?.data?.message ||
-      err?.message ||
-      "Failed to load reports.";
-  } finally {
-    loading.value = false;
-  }
-}
-
 onMounted(() => {
-  loadReports();
+  loadReports(dateRange.value);
 });
 
 watch(dateRange, () => {
-  loadReports();
+  loadReports(dateRange.value);
 });
 
 /* ─────────────────────────────
    Assignment + Revenue shared bus rows
 ───────────────────────────── */
-
-const assignmentRows = computed(() => {
-  return Array.isArray(assignmentReport.value?.rows)
-    ? assignmentReport.value.rows
-    : [];
-});
-
-const revenueRows = computed(() => {
-  return Array.isArray(revenueReport.value?.rows)
-    ? revenueReport.value.rows
-    : [];
-});
 
 const revenueMap = computed(() => {
   const map = new Map();
@@ -927,7 +879,9 @@ const dailyRevenue = computed(() => {
 
 const maxDailyRev = computed(() => {
   const max = Math.max(
-    ...dailyRevenue.value.map((d) => Number(d.fare || 0) + Number(d.terminal || 0)),
+    ...dailyRevenue.value.map(
+      (d) => Number(d.fare || 0) + Number(d.terminal || 0)
+    ),
     0
   );
 
@@ -963,11 +917,7 @@ const commuterStats = computed(() => {
 });
 
 const commuterRoutes = computed(() => {
-  const rows = Array.isArray(commuterReport.value?.rows)
-    ? commuterReport.value.rows
-    : [];
-
-  return rows.map((row) => ({
+  return commuterRows.value.map((row) => ({
     route: safeText(row.route, "Unknown Route"),
     buses: Number(row.buses || 0),
     trips: Number(row.trips || 0),
@@ -999,11 +949,7 @@ const gpsStats = computed(() => {
 });
 
 const gpsActivityData = computed(() => {
-  const rows = Array.isArray(gpsReport.value?.rows)
-    ? gpsReport.value.rows
-    : [];
-
-  return rows.map((row) => {
+  return gpsRows.value.map((row) => {
     const status = normalizeStatus(row.status);
 
     return {
@@ -1011,16 +957,18 @@ const gpsActivityData = computed(() => {
       plate: safeText(row.plate, "N/A"),
       deviceId: safeText(row.deviceId || row.device_code, "No device"),
 
-      // Since hindi ka gumagamit ng gps_history,
-      // these historical values stay 0.
-      pings: 0,
-      lost: status === "Warning" || status === "Offline" ? 1 : 0,
-      km: 0,
-      avgSpeed: Number(row.speed || 0),
-      maxSpeed: Number(row.speed || 0),
+      pings: Number(row.pings || row.totalPings || 0),
+      lost: Number(
+        row.lost ||
+          row.lostSignal ||
+          (status === "Warning" || status === "Offline" ? 1 : 0)
+      ),
+      km: Number(row.km || row.totalKm || 0),
+      avgSpeed: Number(row.avgSpeed || row.speed || 0),
+      maxSpeed: Number(row.maxSpeed || row.speed || 0),
 
       lastPing: safeText(row.lastPing || row.lastSeenLabel, "N/A"),
-      signal: status,
+      signal: row.signal || status,
     };
   });
 });
@@ -1042,11 +990,7 @@ const fareStats = computed(() => {
 });
 
 const farePerBus = computed(() => {
-  const rows = Array.isArray(fareReport.value?.rows)
-    ? fareReport.value.rows
-    : [];
-
-  return rows.map((row) => ({
+  return fareRows.value.map((row) => ({
     code: safeText(row.code, "N/A"),
     plate: safeText(row.plate, "N/A"),
     route: safeText(row.route, "Unassigned"),
@@ -1123,7 +1067,6 @@ function exportExcel() {
 
   if (activeTab.value === "fare") {
     downloadCsv(`fare-report-${range}.csv`, farePerBus.value);
-    return;
   }
 }
 
