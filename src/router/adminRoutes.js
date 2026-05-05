@@ -87,13 +87,9 @@ export default [
         children: [
           {
             path: "",
-            redirect: "/iot/commuters",
+            redirect: "/users/commuters",
           },
-          {
-            path: "devices",
-            name: "adminIoTDevices",
-            component: IoTDevices,
-          },
+ 
           {
             path: "admins",
             name: "adminAccount",
