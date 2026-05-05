@@ -1,23 +1,14 @@
 <!-- src/components/commuters/home/WeatherCard.vue -->
 <template>
-  <section class="weather-card"    data-tour="weather-card"
- :class="`weather-card--${temperatureMode}`">
+  <section
+    class="weather-card"
+    data-tour="weather-card"
+    :class="`weather-card--${temperatureMode}`"
+  >
     <div class="weather-card__glow"></div>
 
-    <!-- Loading State -->
-    <div v-if="loading" class="weather-empty">
-      <div class="weather-empty__icon">
-        <i class="fas fa-spinner fa-spin"></i>
-      </div>
-
-      <div class="weather-empty__text">
-        <strong>Loading weather</strong>
-        <span>Checking your current location...</span>
-      </div>
-    </div>
-
     <!-- No Location / No Weather State -->
-    <div v-else-if="!hasWeather" class="weather-empty">
+    <div v-if="!hasWeather" class="weather-empty">
       <div class="weather-empty__icon">
         <i class="fas fa-location-dot"></i>
       </div>
@@ -82,7 +73,6 @@
       class="weather-alert"
       :class="`weather-alert--${normalizeSeverity(currentAlert.severity)}`"
     >
-   
       <div class="weather-alert__track">
         <span
           class="weather-alert__text"
@@ -108,7 +98,6 @@ const props = defineProps({
 });
 
 const {
-  loading,
   hasWeather,
   temp,
   heatIndex,
@@ -163,10 +152,6 @@ const cleanLocation = computed(() => {
 });
 
 const temperatureMode = computed(() => {
-  /*
-    No location / no weather = original blue theme.
-    Weather available = theme based on actual current temperature.
-  */
   if (!hasWeather.value) return "default";
 
   const value = Number(temp.value);
@@ -205,15 +190,6 @@ function normalizeSeverity(severity) {
   return "info";
 }
 
-function alertIcon(severity) {
-  const value = normalizeSeverity(severity);
-
-  if (value === "error") return "fas fa-circle-exclamation";
-  if (value === "warning") return "fas fa-triangle-exclamation";
-
-  return "fas fa-circle-info";
-}
-
 watch(
   alertSignature,
   () => {
@@ -247,7 +223,6 @@ onMounted(() => {
   box-shadow: 0 14px 30px rgba(14, 116, 144, 0.22);
 }
 
-/* Original blue theme */
 .weather-card--default,
 .weather-card--mild {
   background:
@@ -466,7 +441,6 @@ onMounted(() => {
   border-color: rgba(255, 255, 255, 0.22);
 }
 
-/* No location state, but same original weather-card design */
 .weather-empty {
   position: relative;
   z-index: 1;
@@ -543,17 +517,6 @@ onMounted(() => {
 
 .weather-alert--error {
   background: rgba(239, 68, 68, 0.34);
-}
-
-.weather-alert__icon {
-  width: 36px;
-  height: 34px;
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.92);
-  border-right: 1px solid rgba(255, 255, 255, 0.13);
 }
 
 .weather-alert__track {
