@@ -263,19 +263,14 @@ onBeforeUnmount(() => {
         </button>
       </div>
 
-      <p v-if="loading && !announcements.length && !alerts.length" class="updates-loading">
-        Loading updates...
-      </p>
+     <WeatherCard
+  :alerts="alerts"
+  @dismiss="dismissAdvisory"
+/>
 
-      <p v-if="error" class="updates-error">
-        {{ error }}
-      </p>
-
-      <WeatherCard
-        :alerts="alerts"
-        @dismiss="dismissAdvisory"
-      />
-
+<p v-if="error" class="updates-error">
+  {{ error }}
+</p>
       <HomeTabs
         :announcements="announcements"
         @read="markAnnouncementRead"
