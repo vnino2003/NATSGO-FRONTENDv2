@@ -30,4 +30,4 @@ export function getFareCollectionReport(range = "month") {
   return api.get("/admin/reports/fare", {
     params: { range },
   });
-}
+}   
