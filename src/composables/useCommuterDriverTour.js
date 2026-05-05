@@ -46,8 +46,9 @@ function capyDescription(text) {
 function startCapyTalking() {
   stopCapyTalking();
 
-  const img = document.querySelector("[data-capy-img]");
-  const textEl = document.querySelector("[data-capy-text]");
+  const tour = document.querySelector("[data-capy-tour]");
+  const img = tour?.querySelector("[data-capy-img]");
+  const textEl = tour?.querySelector("[data-capy-text]");
 
   if (!img || !textEl) return;
 
@@ -64,7 +65,7 @@ function startCapyTalking() {
 
   window.__capyMouthTimer = window.setInterval(() => {
     mouthOpen = !mouthOpen;
-    img.src = mouthOpen ? openSrc : closedSrc;
+    img.setAttribute("src", mouthOpen ? openSrc : closedSrc);
   }, 150);
 
   window.__capyTypeTimer = window.setInterval(() => {
@@ -75,7 +76,7 @@ function startCapyTalking() {
     }
 
     stopCapyTalking();
-    img.src = closedSrc;
+    img.setAttribute("src", closedSrc);
   }, 18);
 }
 
@@ -90,10 +91,12 @@ function stopCapyTalking() {
     window.__capyMouthTimer = null;
   }
 
-  const img = document.querySelector("[data-capy-img]");
+  const tour = document.querySelector("[data-capy-tour]");
+  const img = tour?.querySelector("[data-capy-img]");
+
   if (img) {
     img.classList.remove("is-talking");
-    img.src = img.dataset.capyClosed || CAPY_CLOSED;
+    img.setAttribute("src", img.dataset.capyClosed || CAPY_CLOSED);
   }
 }
 
@@ -107,7 +110,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Welcome to NatsGo!",
         description: capyDescription(
-          "Hi! Ako si NatsGo Capy. Ituturo ko sa’yo kung saan makikita ang important parts ng commuter app."
+          "Hi! I’m NatsGo Capy. I’ll guide you through the important parts of the commuter app."
         ),
         side: "bottom",
         align: "center",
@@ -119,7 +122,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Menu",
         description: capyDescription(
-          "Dito mo mabubuksan ang side menu para sa contact, Facebook page, arrival notice, and account options."
+          "Open this menu to access contact options, the Facebook page, arrival notices, and account settings."
         ),
         side: "bottom",
         align: "start",
@@ -129,9 +132,9 @@ export function useCommuterDriverTour() {
       route: "/home",
       element: '[data-tour="home-search"]',
       popover: {
-        title: "Search Routes",
+        title: "Search",
         description: capyDescription(
-          "Dito ka puwedeng maghanap ng bus routes or other commuter info."
+          "Use this search bar to quickly find routes, terminals, or commuter information."
         ),
         side: "bottom",
         align: "center",
@@ -143,7 +146,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Notifications",
         description: capyDescription(
-          "Dito lalabas ang nearby bus alerts and other important commuter notifications."
+          "Check this area for nearby bus alerts and other important commuter updates."
         ),
         side: "bottom",
         align: "end",
@@ -153,9 +156,9 @@ export function useCommuterDriverTour() {
       route: "/home",
       element: '[data-tour="weather-card"]',
       popover: {
-        title: "Weather Card",
+        title: "Weather",
         description: capyDescription(
-          "Dito mo makikita ang weather sa current location mo, including alerts kapag may important update."
+          "This card shows the weather for your current location, including important weather alerts when available."
         ),
         side: "bottom",
         align: "center",
@@ -167,19 +170,21 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Home Sections",
         description: capyDescription(
-          "Dito ka puwedeng lumipat between Explore, Fare & Promos, and Updates."
+          "Switch between Explore, Fares and Promos, and Updates from here."
         ),
         side: "bottom",
         align: "center",
       },
     },
+
+    /* Explore guide */
     {
       route: "/home",
       element: '[data-tour="service-track"]',
       popover: {
-        title: "Quick Track",
+        title: "Live Bus Tracking",
         description: capyDescription(
-          "Tap this kapag gusto mong diretso makita ang live bus location."
+          "Open the live map to see available buses, their current or last known location, and route details."
         ),
         side: "bottom",
         align: "center",
@@ -189,9 +194,9 @@ export function useCommuterDriverTour() {
       route: "/home",
       element: '[data-tour="service-terminal"]',
       popover: {
-        title: "Terminal Shortcut",
+        title: "Terminals",
         description: capyDescription(
-          "Dito ka mabilis makakapunta sa terminal information."
+          "View terminal information, check available terminals, and see buses connected to each terminal."
         ),
         side: "bottom",
         align: "center",
@@ -201,9 +206,9 @@ export function useCommuterDriverTour() {
       route: "/home",
       element: '[data-tour="service-facebook"]',
       popover: {
-        title: "Facebook Page",
+        title: "Announcements",
         description: capyDescription(
-          "Tap this para makita ang official Facebook page for news, announcements, and updates."
+          "Open the Facebook page to view announcements, service updates, and other news."
         ),
         side: "bottom",
         align: "center",
@@ -213,21 +218,22 @@ export function useCommuterDriverTour() {
       route: "/home",
       element: '[data-tour="service-help"]',
       popover: {
-        title: "Help Guide",
+        title: "App Guide",
         description: capyDescription(
-          "Dito ka pupunta kapag kailangan mo ng guide kung paano gamitin ang NATSGO."
+          "Use this whenever you want to repeat the app guide and learn the main features again."
         ),
         side: "bottom",
         align: "center",
       },
     },
+
     {
       route: "/home",
       element: '[data-tour="nearby-buses"]',
       popover: {
         title: "Nearby Buses",
         description: capyDescription(
-          "Dito makikita ang buses na malapit sa’yo kapag naka-on ang location."
+          "When location access is enabled, this section shows buses near you."
         ),
         side: "top",
         align: "center",
@@ -239,7 +245,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Bottom Navigation",
         description: capyDescription(
-          "Ito ang main navigation mo. Dito ka lilipat papunta sa Home, Track, Terminal, and Settings anytime."
+          "Use this navigation bar to switch between Home, Track, Terminal, and Settings anytime."
         ),
         side: "top",
         align: "center",
@@ -251,7 +257,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Live Map",
         description: capyDescription(
-          "Ito ang map kung saan makikita ang live or last known location ng buses."
+          "This map shows the live or last known location of buses."
         ),
         side: "bottom",
         align: "center",
@@ -263,7 +269,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "My Location Button",
         description: capyDescription(
-          "Tap this para ibalik ang map sa current location mo kapag naka-on ang location."
+          "Tap this button to move the map back to your current location when location access is enabled."
         ),
         side: "left",
         align: "center",
@@ -275,7 +281,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Bus List Button",
         description: capyDescription(
-          "Tap this para buksan ang bus list sa baba at makita ang nearby, all buses, terminal, and en route filters."
+          "Tap this button to open the bus list and view filters such as Nearby, All Buses, Terminal, and En Route."
         ),
         side: "left",
         align: "center",
@@ -287,7 +293,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Bus List",
         description: capyDescription(
-          "Dito mo makikita ang list ng buses, filters, status, distance, and ETA."
+          "This panel shows bus details, filters, status, distance, and estimated arrival time."
         ),
         side: "top",
         align: "center",
@@ -299,7 +305,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Terminals",
         description: capyDescription(
-          "Dito mo makikita ang list ng available terminals."
+          "This page shows the available terminals in the system."
         ),
         side: "bottom",
         align: "center",
@@ -309,9 +315,9 @@ export function useCommuterDriverTour() {
       route: "/terminal",
       element: '[data-tour="terminal-search"]',
       popover: {
-        title: "Search Terminal",
+        title: "Search Terminals",
         description: capyDescription(
-          "Gamitin ito para mabilis hanapin ang terminal by name or city."
+          "Use this search field to quickly find a terminal by name or city."
         ),
         side: "bottom",
         align: "center",
@@ -323,7 +329,7 @@ export function useCommuterDriverTour() {
       popover: {
         title: "Terminal Cards",
         description: capyDescription(
-          "Tap a terminal card para makita ang details or open it on live tracking."
+          "Tap a terminal card to view its details or open it on the live tracking map."
         ),
         side: "top",
         align: "center",
@@ -361,7 +367,7 @@ export function useCommuterDriverTour() {
       onHighlighted: () => {
         setTimeout(() => {
           startCapyTalking();
-        }, 80);
+        }, 250);
       },
 
       onNextClick: async (_element, _step, options) => {
@@ -420,7 +426,7 @@ export function useCommuterDriverTour() {
 
     setTimeout(() => {
       startCapyTalking();
-    }, 200);
+    }, 350);
   }
 
   function resetTour() {

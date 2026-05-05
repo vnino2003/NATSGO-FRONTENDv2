@@ -4,10 +4,6 @@ import axios from "axios";
 export const API_BASE =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api";
 
-// Static base removes trailing /api
-// Example:
-// API_BASE = https://backend.up.railway.app/api
-// STATIC_BASE = https://backend.up.railway.app
 export const STATIC_BASE = API_BASE.replace(/\/api\/?$/, "");
 
 export function toStaticUrl(url) {
@@ -28,6 +24,22 @@ const api = axios.create({
   },
 });
 
+api.interceptors.request.use(
+  (config) => {
+    const adminToken = localStorage.getItem("natsgo_admin_token");
+    const commuterToken = localStorage.getItem("natsgo_commuter_token");
+
+    const token = adminToken || commuterToken;
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -39,6 +51,13 @@ api.interceptors.response.use(
       data: error?.response?.data,
       message: error?.message,
     });
+
+    if (error?.response?.status === 401) {
+      localStorage.removeItem("natsgo_admin_token");
+      localStorage.removeItem("natsgo_admin_user");
+      localStorage.removeItem("natsgo_commuter_token");
+      localStorage.removeItem("natsgo_commuter_user");
+    }
 
     return Promise.reject(error);
   }

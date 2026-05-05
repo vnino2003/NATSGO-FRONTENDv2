@@ -12,11 +12,15 @@ import NearbyBusAlertPopup from "@/components/commuters/home/NearbyBusAlertPopup
 
 import { useNearbyBusAlerts } from "@/composables/useNearbyBusAlerts";
 import { useUpdates } from "@/composables/useUpdates";
+import { useAuthStore } from "@/stores/authStore";
+
+const auth = useAuthStore();
 
 const drawerOpen = ref(false);
 const authOpen = ref(false);
 const notifOpen = ref(false);
 const search = ref("");
+const authStartView = ref("chooser");
 
 const {
   announcements,
@@ -46,11 +50,6 @@ const popupVisible = ref(false);
 const activeNearbyAlert = ref(null);
 let popupTimer = null;
 
-/*
-  Sound helper.
-  Uses Web Audio API para kahit wala kang mp3 file.
-  Note: browsers may block sound until user interacted with the page.
-*/
 let audioCtx = null;
 
 function playNearbySound() {
@@ -150,6 +149,45 @@ function markAnnouncementRead(id) {
   if (item) item.read = true;
 }
 
+function openAuth(view = "chooser") {
+  authStartView.value = view;
+  authOpen.value = true;
+}
+
+async function handleCommuterLogin(payload) {
+  try {
+    await auth.loginCommuter(payload);
+    authOpen.value = false;
+  } catch {
+    // error is displayed inside AuthModal from auth.error
+  }
+}
+
+async function handleCommuterSignup(payload) {
+  try {
+    await auth.signupCommuter(payload);
+    authOpen.value = false;
+  } catch {
+    // error is displayed inside AuthModal from auth.error
+  }
+}
+
+function handleGoogleLogin() {
+  auth.startGoogleLogin();
+}
+
+function handleFacebookLogin() {
+  auth.startFacebookLogin();
+}
+
+function handleForgotPassword(email) {
+  alert(
+    email
+      ? `Password reset is not connected yet for ${email}.`
+      : "Password reset is not connected yet."
+  );
+}
+
 onMounted(async () => {
   await loadPublicUpdates();
 
@@ -165,7 +203,10 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <DrawerMenu v-model="drawerOpen" @open-auth="authOpen = true" />
+  <DrawerMenu
+    v-model="drawerOpen"
+    @open-auth="openAuth('chooser')"
+  />
 
   <NotificationDrawer
     v-model="notifOpen"
@@ -176,7 +217,17 @@ onBeforeUnmount(() => {
     @clear="clearNotifications"
   />
 
-  <AuthModal v-model="authOpen" />
+  <AuthModal
+    v-model="authOpen"
+    :start-view="authStartView"
+    :loading="auth.loading"
+    :error="auth.error"
+    @login="handleCommuterLogin"
+    @signup="handleCommuterSignup"
+    @google="handleGoogleLogin"
+    @facebook="handleFacebookLogin"
+    @forgot-password="handleForgotPassword"
+  />
 
   <NearbyBusAlertPopup
     :visible="popupVisible"
@@ -200,6 +251,18 @@ onBeforeUnmount(() => {
     />
 
     <div class="page-content">
+      <div v-if="auth.isCommuterLoggedIn" class="signed-in-strip">
+        <span>
+          <i class="fas fa-circle-check"></i>
+          Signed in as
+          <strong>{{ auth.currentCommuter?.name || auth.currentCommuter?.email }}</strong>
+        </span>
+
+        <button type="button" @click="auth.logoutCommuter()">
+          Logout
+        </button>
+      </div>
+
       <p v-if="loading && !announcements.length && !alerts.length" class="updates-loading">
         Loading updates...
       </p>
@@ -235,5 +298,45 @@ onBeforeUnmount(() => {
 
 .updates-error {
   color: #dc2626;
+}
+
+.signed-in-strip {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  color: #047857;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.signed-in-strip span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.signed-in-strip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.signed-in-strip button {
+  border: none;
+  background: #047857;
+  color: white;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 </style>

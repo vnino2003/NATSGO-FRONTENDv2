@@ -1,26 +1,22 @@
 <template>
   <Teleport to="body">
-    <!-- overlay -->
     <div
       class="modal-overlay"
       :class="{ active: modelValue }"
       @click="close"
     ></div>
 
-    <!-- bottom sheet -->
     <div class="auth-modal" :class="{ active: modelValue }" @click.stop>
-      <!-- back only for login/signup -->
       <button
         v-if="view !== 'chooser'"
         class="modal-back"
         type="button"
         aria-label="Back"
-        @click="view = 'chooser'"
+        @click="goChooser"
       >
         <i class="fas fa-arrow-left"></i>
       </button>
 
-      <!-- close -->
       <button
         class="modal-close"
         type="button"
@@ -31,7 +27,6 @@
       </button>
 
       <div class="modal-content">
-        <!-- ======= CHOOSER VIEW ======= -->
         <div v-if="view === 'chooser'">
           <div class="modal-logo logo-natsgo" aria-label="NATSGO">
             <span class="logo-text">NATSG</span>
@@ -39,40 +34,35 @@
           </div>
 
           <p class="modal-subtitle">
-            Become a member to backup your data for Free!
+            Sign in to save your route preferences, access commuter updates,
+            and personalize your NATSGO experience.
           </p>
 
           <div class="auth-buttons">
             <button
               class="btn-auth btn-facebook"
               type="button"
-              @click="$emit('facebook')"
+              :disabled="loading"
+              @click="emit('facebook')"
             >
               <i class="fab fa-facebook-f"></i>
-              <span>Log In with Facebook</span>
+              <span>Continue with Facebook</span>
             </button>
 
             <button
               class="btn-auth btn-google"
               type="button"
-              @click="$emit('google')"
+              :disabled="loading"
+              @click="emit('google')"
             >
               <i class="fab fa-google"></i>
               <span>Continue with Google</span>
             </button>
 
             <button
-              class="btn-auth btn-apple"
-              type="button"
-              @click="$emit('apple')"
-            >
-              <i class="fab fa-apple"></i>
-              <span>Continue with Apple</span>
-            </button>
-
-            <button
               class="btn-auth btn-email"
               type="button"
+              :disabled="loading"
               @click="view = 'signup'"
             >
               <i class="fas fa-envelope"></i>
@@ -82,21 +72,21 @@
 
           <p class="modal-terms">
             By signing up, you agree to our
-            <a href="#" class="link-terms">Terms of Service</a>
+            <a href="#" class="link-terms" @click.prevent>Terms of Service</a>
             and
-            <a href="#" class="link-terms">Privacy Policy</a>
+            <a href="#" class="link-terms" @click.prevent>Privacy Policy</a>
           </p>
 
           <button
             class="btn-login-existing"
             type="button"
+            :disabled="loading"
             @click="view = 'login'"
           >
             Have an Account? Log In Now
           </button>
         </div>
 
-        <!-- ======= LOGIN VIEW ======= -->
         <form
           v-else-if="view === 'login'"
           class="auth-form"
@@ -111,6 +101,7 @@
               type="email"
               autocomplete="email"
               required
+              :disabled="loading"
             />
             <div class="auth-line"></div>
           </div>
@@ -122,6 +113,7 @@
               type="password"
               autocomplete="current-password"
               required
+              :disabled="loading"
             />
             <div class="auth-line"></div>
           </div>
@@ -130,13 +122,21 @@
             <button
               class="auth-link"
               type="button"
-              @click="$emit('forgot-password', login.email)"
+              :disabled="loading"
+              @click="emit('forgot-password', login.email)"
             >
               Forgot Password?
             </button>
           </div>
 
-          <button class="auth-primary" type="submit">Continue</button>
+          <p v-if="localError || error" class="auth-error">
+            {{ localError || error }}
+          </p>
+
+          <button class="auth-primary" type="submit" :disabled="loading">
+            <i v-if="loading" class="fas fa-spinner fa-spin"></i>
+            <span>{{ loading ? "Logging in..." : "Continue" }}</span>
+          </button>
 
           <div class="auth-divider">
             <span>or</span>
@@ -145,20 +145,37 @@
           <button
             class="btn-auth btn-google"
             type="button"
-            @click="$emit('google')"
+            :disabled="loading"
+            @click="emit('google')"
           >
             <i class="fab fa-google"></i>
             <span>Continue with Google</span>
           </button>
 
-          <button class="auth-switch" type="button" @click="view = 'signup'">
+          <button
+            class="auth-switch"
+            type="button"
+            :disabled="loading"
+            @click="view = 'signup'"
+          >
             Don’t have an account? <b>Sign up</b>
           </button>
         </form>
 
-        <!-- ======= SIGNUP VIEW ======= -->
         <form v-else class="auth-form" @submit.prevent="submitSignup">
           <h2 class="auth-title">Sign Up with Email</h2>
+
+          <div class="auth-field">
+            <label>Name</label>
+            <input
+              v-model.trim="signup.name"
+              type="text"
+              autocomplete="name"
+              placeholder="Your name"
+              :disabled="loading"
+            />
+            <div class="auth-line"></div>
+          </div>
 
           <div class="auth-field">
             <label>Email</label>
@@ -167,6 +184,7 @@
               type="email"
               autocomplete="email"
               required
+              :disabled="loading"
             />
             <div class="auth-line"></div>
           </div>
@@ -180,6 +198,7 @@
               maxlength="50"
               autocomplete="new-password"
               required
+              :disabled="loading"
             />
             <div class="auth-line"></div>
           </div>
@@ -193,15 +212,19 @@
               maxlength="50"
               autocomplete="new-password"
               required
+              :disabled="loading"
             />
             <div class="auth-line"></div>
           </div>
 
-          <p v-if="signupError" class="auth-error">
-            {{ signupError }}
+          <p v-if="localError || error" class="auth-error">
+            {{ localError || error }}
           </p>
 
-          <button class="auth-primary" type="submit">Sign up</button>
+          <button class="auth-primary" type="submit" :disabled="loading">
+            <i v-if="loading" class="fas fa-spinner fa-spin"></i>
+            <span>{{ loading ? "Creating..." : "Sign up" }}</span>
+          </button>
 
           <div class="auth-divider">
             <span>or</span>
@@ -210,13 +233,19 @@
           <button
             class="btn-auth btn-google"
             type="button"
-            @click="$emit('google')"
+            :disabled="loading"
+            @click="emit('google')"
           >
             <i class="fab fa-google"></i>
             <span>Continue with Google</span>
           </button>
 
-          <button class="auth-switch" type="button" @click="view = 'login'">
+          <button
+            class="auth-switch"
+            type="button"
+            :disabled="loading"
+            @click="view = 'login'"
+          >
             Already have an account? <b>Log in</b>
           </button>
         </form>
@@ -226,11 +255,13 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { reactive, ref, watch } from "vue";
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   startView: { type: String, default: "chooser" },
+  loading: { type: Boolean, default: false },
+  error: { type: String, default: "" },
 });
 
 const emit = defineEmits([
@@ -239,61 +270,94 @@ const emit = defineEmits([
   "signup",
   "google",
   "facebook",
-  "apple",
   "forgot-password",
 ]);
 
 const view = ref(props.startView || "chooser");
+const localError = ref("");
 
-const login = ref({
+const login = reactive({
   email: "",
   password: "",
 });
 
-const signup = ref({
+const signup = reactive({
+  name: "",
   email: "",
   password: "",
   confirm: "",
 });
-
-const signupError = ref("");
 
 watch(
   () => props.modelValue,
   (open) => {
     if (open) {
       view.value = props.startView || "chooser";
-      signupError.value = "";
+      localError.value = "";
+    }
+  }
+);
+
+watch(
+  () => props.startView,
+  (next) => {
+    if (props.modelValue) {
+      view.value = next || "chooser";
     }
   }
 );
 
 function close() {
   emit("update:modelValue", false);
-  signupError.value = "";
+  localError.value = "";
+}
+
+function goChooser() {
+  view.value = "chooser";
+  localError.value = "";
 }
 
 function submitLogin() {
-  emit("login", { ...login.value });
+  localError.value = "";
+
+  if (!login.email || !login.password) {
+    localError.value = "Email and password are required.";
+    return;
+  }
+
+  emit("login", {
+    email: login.email,
+    password: login.password,
+  });
 }
 
 function submitSignup() {
-  signupError.value = "";
+  localError.value = "";
 
-  if (signup.value.password !== signup.value.confirm) {
-    signupError.value = "Passwords do not match.";
+  if (!signup.email || !signup.password) {
+    localError.value = "Email and password are required.";
+    return;
+  }
+
+  if (signup.password.length < 6) {
+    localError.value = "Password must be at least 6 characters.";
+    return;
+  }
+
+  if (signup.password !== signup.confirm) {
+    localError.value = "Passwords do not match.";
     return;
   }
 
   emit("signup", {
-    email: signup.value.email,
-    password: signup.value.password,
+    name: signup.name || signup.email.split("@")[0],
+    email: signup.email,
+    password: signup.password,
   });
 }
 </script>
 
 <style scoped>
-/* always in front of drawer and notification drawer */
 .modal-overlay {
   z-index: 20000 !important;
 }
@@ -307,7 +371,6 @@ function submitSignup() {
   z-index: 20002 !important;
 }
 
-/* small add-ons only */
 .modal-back {
   position: absolute;
   top: 20px;
@@ -365,6 +428,10 @@ function submitSignup() {
   padding: 8px 0;
 }
 
+.auth-field input:disabled {
+  opacity: 0.6;
+}
+
 .auth-field input:-webkit-autofill,
 .auth-field input:-webkit-autofill:hover,
 .auth-field input:-webkit-autofill:focus {
@@ -405,6 +472,19 @@ function submitSignup() {
   font-weight: 700;
   cursor: pointer;
   margin-top: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.auth-primary:disabled,
+.btn-auth:disabled,
+.auth-switch:disabled,
+.auth-link:disabled,
+.btn-login-existing:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .auth-primary:active {
@@ -439,7 +519,7 @@ function submitSignup() {
 }
 
 .auth-error {
-  margin: 8px 0 0;
+  margin: 8px 0 12px;
   padding: 10px 12px;
   border-radius: 12px;
   background: rgba(239, 68, 68, 0.18);
@@ -448,7 +528,6 @@ function submitSignup() {
   font-weight: 700;
 }
 
-/* NATSGO wordmark */
 .logo-natsgo {
   display: inline-flex;
   align-items: center;
