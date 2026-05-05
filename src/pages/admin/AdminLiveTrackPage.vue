@@ -1455,13 +1455,17 @@ function makeBusDivIcon(bus, isSelected = false) {
 }
 
 function makeTerminalDivIcon(isSelected = false) {
-  const sel = isSelected ? "sel" : "";
+  const sel = isSelected ? "selected" : "";
 
   return L.divIcon({
-    className: "",
-    html: `<div class="lt-map-term ${sel}"><i class="fas fa-building"></i></div>`,
-    iconSize: [36, 44],
-    iconAnchor: [18, 40],
+    className: "lt-leaflet-term-icon",
+    html: `
+      <div class="lt-leaflet-term-pill ${sel}" aria-label="terminal">
+        <i class="fas fa-building"></i>
+      </div>
+    `,
+    iconSize: [34, 34],
+    iconAnchor: [17, 30],
   });
 }
 
@@ -2214,8 +2218,7 @@ onUnmounted(() => {
 }
 
 /* Leaflet custom markers */
-:deep(.lt-map-bus),
-:deep(.lt-map-term) {
+:deep(.lt-map-bus) {
   width: 36px;
   height: 36px;
   border-radius: 999px;
@@ -2230,43 +2233,39 @@ onUnmounted(() => {
   transition: transform 0.15s;
 }
 
-:deep(.lt-map-bus.green) {
-  background: var(--green);
+:deep(.lt-leaflet-term-icon) {
+  background: transparent;
+  border: none;
 }
 
-:deep(.lt-map-bus.amber) {
-  background: var(--amber);
+:deep(.lt-leaflet-term-pill) {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px 12px 12px 4px;
+  background: white;
+  border: 2px solid #0369a1;
+  color: #0369a1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.12);
+  transform: rotate(-45deg);
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
-:deep(.lt-map-bus.red) {
-  background: var(--red);
+:deep(.lt-leaflet-term-pill i) {
+  transform: rotate(45deg);
+  font-size: 14px;
 }
 
-:deep(.lt-map-bus.sel),
-:deep(.lt-map-term.sel) {
-  transform: scale(1.16);
+:deep(.lt-leaflet-term-pill.selected) {
+  transform: rotate(-45deg) scale(1.16);
   box-shadow:
-    0 16px 30px rgba(15, 23, 42, 0.28),
-    0 0 0 5px rgba(59, 130, 246, 0.22);
+    0 12px 26px rgba(15, 23, 42, 0.22),
+    0 0 0 4px rgba(255, 255, 255, 0.9);
 }
-
-:deep(.lt-map-term) {
-  height: 44px;
-  border-radius: 14px 14px 14px 4px;
-  background: var(--blue);
-}
-
-:deep(.lt-map-me) {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  background: #2563eb;
-  border: 3px solid #fff;
-  box-shadow:
-    0 0 0 4px rgba(37, 99, 235, 0.18),
-    0 8px 18px rgba(15, 23, 42, 0.25);
-}
-
 /* Panel */
 .lt-panel-switch {
   display: flex;

@@ -4,6 +4,7 @@ import { driver } from "driver.js";
 import "driver.js/dist/driver.css";
 
 const TOUR_KEY = "natsgo_commuter_driver_tour_done";
+const WELCOME_BACK_SESSION_KEY = "natsgo_commuter_welcome_back_shown";
 
 const CAPY_OPEN = "/mascots/natsgo-capy-open.png";
 const CAPY_CLOSED = "/mascots/natsgo-capy-closed.png";
@@ -101,7 +102,7 @@ function stopCapyTalking() {
 }
 
 /* =========================
-   Tour Complete Celebration
+   19/19 Complete Celebration
 ========================= */
 
 function injectTourCelebrationStyle() {
@@ -126,9 +127,9 @@ function injectTourCelebrationStyle() {
 
     .tour-complete-card {
       position: relative;
-      width: min(360px, 100%);
+      width: min(370px, 100%);
       overflow: hidden;
-      border-radius: 26px;
+      border-radius: 28px;
       background:
         radial-gradient(circle at top left, rgba(96, 165, 250, 0.26), transparent 35%),
         radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.2), transparent 35%),
@@ -164,19 +165,42 @@ function injectTourCelebrationStyle() {
     .tour-complete-confetti span:nth-child(7) { left: 85%; animation-delay: .05s; }
     .tour-complete-confetti span:nth-child(8) { left: 94%; animation-delay: .5s; }
 
-    .tour-complete-badge {
-      width: 76px;
-      height: 76px;
-      margin: 0 auto 14px;
-      border-radius: 24px;
+    .tour-complete-capy {
+      position: relative;
+      width: 92px;
+      height: 92px;
+      margin: 0 auto 12px;
+      border-radius: 28px;
+      background: #eff6ff;
       display: flex;
       align-items: center;
       justify-content: center;
+      box-shadow: 0 14px 30px rgba(37, 99, 235, 0.18);
+      animation: tourBadgeBounce 0.9s ease infinite alternate;
+    }
+
+    .tour-complete-capy img {
+      width: 82px;
+      height: 82px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .tour-complete-check {
+      position: absolute;
+      right: -5px;
+      bottom: -5px;
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
       background: linear-gradient(135deg, #2563eb, #22c55e);
       color: #fff;
-      font-size: 32px;
-      box-shadow: 0 14px 30px rgba(37, 99, 235, 0.28);
-      animation: tourBadgeBounce 0.9s ease infinite alternate;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid #fff;
+      font-size: 13px;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.16);
     }
 
     .tour-complete-progress {
@@ -202,7 +226,7 @@ function injectTourCelebrationStyle() {
 
     .tour-complete-text {
       margin: 8px auto 18px;
-      max-width: 270px;
+      max-width: 280px;
       color: #64748b;
       font-size: 13px;
       font-weight: 600;
@@ -289,8 +313,11 @@ function showTourCompleteCelebration(totalSteps = 19) {
         <span>⭐</span>
       </div>
 
-      <div class="tour-complete-badge">
-        <i class="fas fa-check"></i>
+      <div class="tour-complete-capy">
+        <img src="${CAPY_CLOSED}" alt="NatsGo Capy" />
+        <div class="tour-complete-check">
+          <i class="fas fa-check"></i>
+        </div>
       </div>
 
       <div class="tour-complete-progress">
@@ -301,7 +328,7 @@ function showTourCompleteCelebration(totalSteps = 19) {
       <h2 class="tour-complete-title">You’re all set!</h2>
 
       <p class="tour-complete-text">
-        Nice! You finished the NatsGo app guide. You can now use the main features confidently.
+        Nice! You finished the NatsGo app guide. Capy will be here again when you need help.
       </p>
 
       <button class="tour-complete-btn" type="button" data-close-tour-complete>
@@ -329,7 +356,170 @@ function showTourCompleteCelebration(totalSteps = 19) {
     if (document.body.contains(overlay)) {
       closeCelebration();
     }
-  }, 4500);
+  }, 4800);
+}
+
+/* =========================
+   Welcome Back With Capy
+========================= */
+
+function injectWelcomeBackStyle() {
+  if (document.getElementById("natsgo-welcome-back-style")) return;
+
+  const style = document.createElement("style");
+  style.id = "natsgo-welcome-back-style";
+  style.textContent = `
+    .welcome-back-toast {
+      position: fixed;
+      left: 50%;
+      bottom: 88px;
+      z-index: 100000;
+      width: min(360px, calc(100% - 28px));
+      transform: translateX(-50%) translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      animation: welcomeBackIn 0.35s ease forwards;
+    }
+
+    .welcome-back-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 13px 14px;
+      border-radius: 22px;
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.12), transparent 40%),
+        rgba(255, 255, 255, 0.96);
+      border: 1px solid rgba(226, 232, 240, 0.95);
+      box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+    }
+
+    .welcome-back-capy {
+      position: relative;
+      width: 58px;
+      height: 58px;
+      flex: 0 0 auto;
+      border-radius: 20px;
+      background: #eff6ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 10px 20px rgba(37, 99, 235, 0.16);
+      overflow: hidden;
+    }
+
+    .welcome-back-capy img {
+      width: 54px;
+      height: 54px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .welcome-back-wave {
+      position: absolute;
+      right: -1px;
+      top: -1px;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background: #22c55e;
+      color: #fff;
+      border: 2px solid #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .welcome-back-title {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 900;
+      color: #0f172a;
+      letter-spacing: -0.02em;
+    }
+
+    .welcome-back-text {
+      margin: 2px 0 0;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      line-height: 1.4;
+    }
+
+    .welcome-back-toast.is-leaving {
+      animation: welcomeBackOut 0.25s ease forwards;
+    }
+
+    @keyframes welcomeBackIn {
+      from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(18px) scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+    }
+
+    @keyframes welcomeBackOut {
+      from {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0) scale(1);
+      }
+      to {
+        opacity: 0;
+        transform: translateX(-50%) translateY(12px) scale(0.97);
+      }
+    }
+  `;
+
+  document.head.appendChild(style);
+}
+
+function showWelcomeBackToast() {
+  const alreadyShown = sessionStorage.getItem(WELCOME_BACK_SESSION_KEY) === "true";
+  if (alreadyShown) return;
+
+  sessionStorage.setItem(WELCOME_BACK_SESSION_KEY, "true");
+
+  injectWelcomeBackStyle();
+
+  const oldToast = document.querySelector(".welcome-back-toast");
+  if (oldToast) oldToast.remove();
+
+  const toast = document.createElement("div");
+  toast.className = "welcome-back-toast";
+
+  toast.innerHTML = `
+    <div class="welcome-back-card">
+      <div class="welcome-back-capy">
+        <img src="${CAPY_CLOSED}" alt="NatsGo Capy" />
+        <div class="welcome-back-wave">
+          <i class="fas fa-hand"></i>
+        </div>
+      </div>
+
+      <div>
+        <p class="welcome-back-title">Welcome back!</p>
+        <p class="welcome-back-text">
+          Capy remembers you. You’re ready to use NatsGo again.
+        </p>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("is-leaving");
+
+    setTimeout(() => {
+      toast.remove();
+    }, 260);
+  }, 3400);
 }
 
 export function useCommuterDriverTour() {
@@ -408,7 +598,6 @@ export function useCommuterDriverTour() {
         align: "center",
       },
     },
-
     {
       route: "/home",
       element: '[data-tour="service-track"]',
@@ -591,7 +780,14 @@ export function useCommuterDriverTour() {
   function createDriver(force = false) {
     const completed = localStorage.getItem(TOUR_KEY) === "true";
 
-    if (completed && !force) return null;
+    if (completed && !force) {
+      showWelcomeBackToast();
+      return null;
+    }
+
+    if (force) {
+      sessionStorage.removeItem(WELCOME_BACK_SESSION_KEY);
+    }
 
     let driverObj = null;
 
@@ -679,6 +875,7 @@ export function useCommuterDriverTour() {
 
   function resetTour() {
     localStorage.removeItem(TOUR_KEY);
+    sessionStorage.removeItem(WELCOME_BACK_SESSION_KEY);
   }
 
   return {
