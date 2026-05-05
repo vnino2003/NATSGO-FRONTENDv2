@@ -18,6 +18,7 @@ import IoTDevices from "../pages/admin/iot/Devices.vue";
 import IoTAssignments from "../pages/admin/iot/assignment.vue";
 
 import AdminLoginPage from "../pages/admin/AdminLoginPage.vue";
+import AdminAccountPage from "../pages/admin/AdminAccountPage.vue";
 
 export default [
   {
@@ -81,6 +82,26 @@ export default [
         ],
       },
 
+       {
+        path: "users",
+        children: [
+          {
+            path: "",
+            redirect: "/iot/commuters",
+          },
+          {
+            path: "devices",
+            name: "adminIoTDevices",
+            component: IoTDevices,
+          },
+          {
+            path: "admins",
+            name: "adminAccount",
+            component: AdminAccountPage,
+          },
+        ],
+      },
+
       {
         path: "terminals",
         name: "adminTerminals",
@@ -115,6 +136,11 @@ export default [
         path: "settings",
         name: "adminSettings",
         component: AdminSettingPage,
+      },
+      {
+        path: "users/admins",
+        name: "adminAccount",
+        component: AdminAccountPage,
       },
 
       {
