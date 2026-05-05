@@ -2,106 +2,144 @@
 import { ref, computed } from "vue";
 import { getCurrentWeatherByCoords } from "@/services/api/weatherService";
 
+const WEATHER_CACHE_KEY = "natsgo_weather_cache_v1";
+const WEATHER_CACHE_MAX_AGE = 10 * 60 * 1000; // 10 minutes
+
 const DEFAULT_WEATHER = {
   temp: null,
-  heat_index: null,
-  feels_like: null,
-  humidity: null,
-  wind_kmh: null,
   min: null,
   max: null,
+  heatIndex: null,
   condition: "",
   location: "",
-  icon: "fas fa-cloud-rain",
+  icon: "fas fa-cloud",
+  updated_at: null,
 };
 
-export function useWeather() {
-  const weather = ref({ ...DEFAULT_WEATHER });
-  const loading = ref(false);
-  const error = ref("");
-  const hasWeather = ref(false);
-  const locationDenied = ref(false);
+const weather = ref(loadCachedWeather());
+const loading = ref(false);
+const error = ref("");
 
-  const temp = computed(() => weather.value?.temp ?? null);
+function loadCachedWeather() {
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return { ...DEFAULT_WEATHER };
 
-  const heatIndex = computed(() => {
-    return weather.value?.heat_index ?? weather.value?.feels_like ?? null;
-  });
+    const cached = JSON.parse(raw);
 
-  const feelsLike = computed(() => {
-    return weather.value?.feels_like ?? weather.value?.heat_index ?? null;
-  });
+    if (!cached || typeof cached !== "object") {
+      return { ...DEFAULT_WEATHER };
+    }
 
-  const humidity = computed(() => weather.value?.humidity ?? null);
-  const windKmh = computed(() => weather.value?.wind_kmh ?? null);
-
-  const min = computed(() => weather.value?.min ?? null);
-  const max = computed(() => weather.value?.max ?? null);
-
-  const condition = computed(() => {
-    return weather.value?.condition || "";
-  });
-
-  const location = computed(() => {
-    return weather.value?.location || "";
-  });
-
-  const icon = computed(() => {
-    return weather.value?.icon || DEFAULT_WEATHER.icon;
-  });
-
-  function getUserCoordinates() {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error("Geolocation is not supported."));
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          });
-        },
-        (geoError) => {
-          reject(geoError);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 12000,
-          maximumAge: 60 * 1000,
-        }
-      );
-    });
+    return {
+      ...DEFAULT_WEATHER,
+      ...cached,
+    };
+  } catch {
+    return { ...DEFAULT_WEATHER };
   }
+}
 
-  async function loadWeather() {
-    loading.value = true;
+function saveCachedWeather(data) {
+  try {
+    localStorage.setItem(
+      WEATHER_CACHE_KEY,
+      JSON.stringify({
+        ...data,
+        cached_at: Date.now(),
+      })
+    );
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function isCacheFresh() {
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return false;
+
+    const cached = JSON.parse(raw);
+    if (!cached?.cached_at) return false;
+
+    return Date.now() - Number(cached.cached_at) < WEATHER_CACHE_MAX_AGE;
+  } catch {
+    return false;
+  }
+}
+
+export function useWeather() {
+  const hasWeather = computed(() => {
+    return (
+      weather.value &&
+      weather.value.temp !== null &&
+      weather.value.temp !== undefined &&
+      weather.value.location
+    );
+  });
+
+  const temp = computed(() => weather.value?.temp ?? "");
+  const min = computed(() => weather.value?.min ?? "");
+  const max = computed(() => weather.value?.max ?? "");
+  const heatIndex = computed(() => weather.value?.heatIndex ?? null);
+  const condition = computed(() => weather.value?.condition || "Weather unavailable");
+  const location = computed(() => weather.value?.location || "");
+  const icon = computed(() => weather.value?.icon || "fas fa-cloud");
+
+  async function loadWeather(options = {}) {
+    const { force = false } = options;
+
+    // Important:
+    // If may cached weather na, huwag na mag-loading UI.
+    // I-refresh lang silently sa background.
+    const alreadyHasWeather = hasWeather.value;
+
+    if (!force && alreadyHasWeather && isCacheFresh()) {
+      return;
+    }
+
+    if (!alreadyHasWeather) {
+      loading.value = true;
+    }
+
     error.value = "";
-    locationDenied.value = false;
 
     try {
-      const coords = await getUserCoordinates();
-      const data = await getCurrentWeatherByCoords(coords.lat, coords.lng);
+      const position = await getCurrentPosition();
 
-      weather.value = {
-        ...DEFAULT_WEATHER,
-        ...data,
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+
+      const response = await getCurrentWeatherByCoords(latitude, longitude);
+      const data = response?.data?.data || response?.data || null;
+
+      if (!data) {
+        throw new Error("No weather data received");
+      }
+
+      const nextWeather = {
+        temp: data.temp ?? null,
+        min: data.min ?? null,
+        max: data.max ?? null,
+        heatIndex: data.heatIndex ?? data.heat_index ?? null,
+        condition: data.condition || "Weather unavailable",
+        location: data.location || "",
+        icon: data.icon || "fas fa-cloud",
+        updated_at: data.updated_at || new Date().toISOString(),
       };
 
-      hasWeather.value = true;
+      weather.value = nextWeather;
+      saveCachedWeather(nextWeather);
     } catch (err) {
       console.error("loadWeather error:", err);
 
-      hasWeather.value = false;
-      weather.value = { ...DEFAULT_WEATHER };
+      error.value =
+        err?.message || "Unable to load weather right now.";
 
-      if (err?.code === 1) {
-        locationDenied.value = true;
-        error.value = "Location permission denied.";
-      } else {
-        error.value = "Failed to load weather.";
+      // Do not clear old weather.
+      // Para hindi nawawala yung card kapag failed yung refresh.
+      if (!hasWeather.value) {
+        weather.value = loadCachedWeather();
       }
     } finally {
       loading.value = false;
@@ -113,19 +151,28 @@ export function useWeather() {
     loading,
     error,
     hasWeather,
-    locationDenied,
-
     temp,
-    heatIndex,
-    feelsLike,
-    humidity,
-    windKmh,
     min,
     max,
+    heatIndex,
     condition,
     location,
     icon,
-
     loadWeather,
   };
+}
+
+function getCurrentPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) {
+      reject(new Error("Geolocation is not supported"));
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 10 * 60 * 1000,
+    });
+  });
 }
