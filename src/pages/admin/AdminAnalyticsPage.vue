@@ -444,45 +444,53 @@
     </template>
 
     <!-- ══════════════════════════════════════════ -->
-    <!-- Fare Collection Report -->
+    <!-- Fare Estimate Report -->
+    <!-- System cannot know regular/discounted/expected/variance exactly. -->
+    <!-- Estimate only: boarding count × estimated fare rate. -->
     <!-- ══════════════════════════════════════════ -->
     <template v-else-if="activeTab === 'fare'">
       <div class="rp-kpi-row">
         <div class="rp-kpi rp-kpi--emerald">
-          <div class="rp-kpi-label">Total Fare Collected</div>
-          <div class="rp-kpi-value">₱ {{ fmt(fareStats.total) }}</div>
-          <div class="rp-kpi-sub"><i class="fas fa-arrow-trend-up"></i> +9.1% vs yesterday</div>
+          <div class="rp-kpi-label">Estimated Fare Total</div>
+          <div class="rp-kpi-value">₱ {{ fmt(fareStats.estimatedTotal) }}</div>
+          <div class="rp-kpi-sub">Based on passenger boardings only</div>
         </div>
         <div class="rp-kpi rp-kpi--blue">
-          <div class="rp-kpi-label">Regular Fare</div>
-          <div class="rp-kpi-value">₱ {{ fmt(fareStats.regular) }}</div>
-          <div class="rp-kpi-sub">{{ pct(fareStats.regular, fareStats.total) }}% of collection</div>
+          <div class="rp-kpi-label">Total Boardings</div>
+          <div class="rp-kpi-value">{{ fareStats.totalBoardings.toLocaleString() }}</div>
+          <div class="rp-kpi-sub">From passenger counter / logs</div>
         </div>
         <div class="rp-kpi rp-kpi--violet">
-          <div class="rp-kpi-label">Discounted Fare</div>
-          <div class="rp-kpi-value">₱ {{ fmt(fareStats.discounted) }}</div>
-          <div class="rp-kpi-sub">PWD, Senior, Students</div>
+          <div class="rp-kpi-label">Estimated Fare Rate</div>
+          <div class="rp-kpi-value">₱ {{ fmt(ESTIMATED_FARE_PER_PASSENGER) }}</div>
+          <div class="rp-kpi-sub">Change this value in ReportsPage.vue</div>
         </div>
         <div class="rp-kpi rp-kpi--amber">
-          <div class="rp-kpi-label">Avg Fare / Commuter</div>
-          <div class="rp-kpi-value">₱ {{ fareStats.avgPerCommuter }}</div>
-          <div class="rp-kpi-sub">Across all routes</div>
+          <div class="rp-kpi-label">Buses With Boardings</div>
+          <div class="rp-kpi-value">{{ fareStats.activeBuses }}</div>
+          <div class="rp-kpi-sub">Only buses with passenger count</div>
         </div>
         <div class="rp-kpi rp-kpi--rose">
-          <div class="rp-kpi-label">Uncollected / Variance</div>
-          <div class="rp-kpi-value">₱ {{ fmt(fareStats.variance) }}</div>
-          <div class="rp-kpi-sub">Requires reconciliation</div>
+          <div class="rp-kpi-label">Report Type</div>
+          <div class="rp-kpi-value rp-kpi-value--small">Estimate</div>
+          <div class="rp-kpi-sub">No exact fare classification used</div>
         </div>
       </div>
 
       <div class="rp-card">
         <div class="rp-card-head">
-          <div class="rp-card-title"><i class="fas fa-coins"></i> Fare Collection Report — Per Bus</div>
+          <div class="rp-card-title"><i class="fas fa-coins"></i> Fare Estimate Report — Per Bus</div>
           <div class="rp-card-tools">
             <button class="rp-export-btn" @click="exportExcel"><i class="fas fa-file-excel"></i> Excel</button>
             <button class="rp-export-btn" @click="exportPDF"><i class="fas fa-file-pdf"></i> PDF</button>
           </div>
         </div>
+
+        <div class="rp-note">
+          <i class="fas fa-circle-info"></i>
+          This report is only an estimate because the system cannot automatically confirm regular fare, discounted fare, exact route fare, expected collection, or variance.
+        </div>
+
         <div class="rp-table-wrap">
           <table class="rp-table">
             <thead>
@@ -490,14 +498,11 @@
                 <th>#</th>
                 <th>Bus Code</th>
                 <th>Plate</th>
-                <th>Route</th>
                 <th>Trips Made</th>
                 <th>Boarding Count</th>
-                <th>Regular Fare</th>
-                <th>Discounted</th>
-                <th>Total Collected</th>
-                <th>Expected</th>
-                <th>Variance</th>
+                <th>Fare Rate Used</th>
+                <th>Estimated Fare</th>
+                <th>Basis</th>
               </tr>
             </thead>
             <tbody>
@@ -505,26 +510,19 @@
                 <td class="rp-td-num">{{ i + 1 }}</td>
                 <td><span class="rp-bus-code-chip">{{ b.code }}</span></td>
                 <td class="rp-mono">{{ b.plate }}</td>
-                <td>{{ b.route }}</td>
                 <td class="rp-td-num">{{ b.trips }}</td>
                 <td class="rp-td-num">{{ b.boardings.toLocaleString() }}</td>
-                <td class="rp-td-money">₱ {{ fmt(b.regular) }}</td>
-                <td class="rp-td-money rp-td-money--violet">₱ {{ fmt(b.discounted) }}</td>
-                <td class="rp-td-money rp-td-money--strong">₱ {{ fmt(b.collected) }}</td>
-                <td class="rp-td-money">₱ {{ fmt(b.expected) }}</td>
-                <td class="rp-td-num" :class="b.variance < 0 ? 'rp-td-danger' : 'rp-td-success'">
-                  {{ b.variance >= 0 ? '+' : '' }}₱{{ fmt(Math.abs(b.variance)) }}
-                </td>
+                <td class="rp-td-money">₱ {{ fmt(b.fareRate) }}</td>
+                <td class="rp-td-money rp-td-money--strong rp-td-money--grand">₱ {{ fmt(b.estimatedFare) }}</td>
+                <td class="rp-td-muted">{{ b.basis }}</td>
               </tr>
             </tbody>
             <tfoot>
               <tr class="rp-tfoot">
-                <td colspan="5"><strong>TOTAL</strong></td>
-                <td class="rp-td-num"><strong>{{ farePerBus.reduce((a,b)=>a+b.boardings,0).toLocaleString() }}</strong></td>
-                <td class="rp-td-money rp-td-money--strong">₱ {{ fmt(farePerBus.reduce((a,b)=>a+b.regular,0)) }}</td>
-                <td class="rp-td-money rp-td-money--strong">₱ {{ fmt(farePerBus.reduce((a,b)=>a+b.discounted,0)) }}</td>
-                <td class="rp-td-money rp-td-money--strong rp-td-money--grand">₱ {{ fmt(farePerBus.reduce((a,b)=>a+b.collected,0)) }}</td>
-                <td class="rp-td-money rp-td-money--strong">₱ {{ fmt(farePerBus.reduce((a,b)=>a+b.expected,0)) }}</td>
+                <td colspan="4"><strong>TOTAL</strong></td>
+                <td class="rp-td-num"><strong>{{ fareStats.totalBoardings.toLocaleString() }}</strong></td>
+                <td></td>
+                <td class="rp-td-money rp-td-money--strong rp-td-money--grand">₱ {{ fmt(fareStats.estimatedTotal) }}</td>
                 <td></td>
               </tr>
             </tfoot>
@@ -556,6 +554,9 @@ const activeTab = ref("revenue");
 const busSearch = ref("");
 const sortKey = ref("totalRev");
 const sortDir = ref("desc");
+
+// Fare report is estimate-only. Change this if your approved base fare changes.
+const ESTIMATED_FARE_PER_PASSENGER = 13;
 
 const {
   loading,
@@ -977,31 +978,52 @@ const gpsActivityData = computed(() => {
    Fare Collection
 ───────────────────────────── */
 
-const fareStats = computed(() => {
-  const kpis = fareReport.value?.kpis || {};
+const farePerBus = computed(() => {
+  return fareRows.value.map((row) => {
+    const boardings = Number(
+      row.boardings ??
+        row.boardingCount ??
+        row.boarding_count ??
+        row.passengers ??
+        row.totalPassengers ??
+        0
+    );
 
-  return {
-    total: Number(kpis.totalCollected || 0),
-    regular: Number(kpis.regularFare || 0),
-    discounted: Number(kpis.discountedFare || 0),
-    avgPerCommuter: Number(kpis.avgFarePerCommuter || 0),
-    variance: Number(kpis.variance || 0),
-  };
+    const fareRate = Number(row.fareRate || ESTIMATED_FARE_PER_PASSENGER);
+    const estimatedFare = boardings * fareRate;
+
+    return {
+      code: safeText(row.code || row.busNumber || row.bus_number, "N/A"),
+      plate: safeText(row.plate || row.plate_number, "N/A"),
+      trips: Number(row.trips || row.tripCount || row.trip_count || 0),
+      boardings,
+      fareRate,
+      estimatedFare,
+      basis: `${boardings.toLocaleString()} boardings × ₱${fmt(fareRate)}`,
+    };
+  });
 });
 
-const farePerBus = computed(() => {
-  return fareRows.value.map((row) => ({
-    code: safeText(row.code, "N/A"),
-    plate: safeText(row.plate, "N/A"),
-    route: safeText(row.route, "Unassigned"),
-    trips: Number(row.trips || 0),
-    boardings: Number(row.boardings || 0),
-    regular: Number(row.regular || 0),
-    discounted: Number(row.discounted || 0),
-    collected: Number(row.collected || 0),
-    expected: Number(row.expected || 0),
-    variance: Number(row.variance || 0),
-  }));
+const fareStats = computed(() => {
+  const totalBoardings = farePerBus.value.reduce(
+    (sum, b) => sum + Number(b.boardings || 0),
+    0
+  );
+
+  const estimatedTotal = farePerBus.value.reduce(
+    (sum, b) => sum + Number(b.estimatedFare || 0),
+    0
+  );
+
+  const activeBuses = farePerBus.value.filter(
+    (b) => Number(b.boardings || 0) > 0
+  ).length;
+
+  return {
+    totalBoardings,
+    estimatedTotal,
+    activeBuses,
+  };
 });
 
 /* ─────────────────────────────
@@ -1349,6 +1371,10 @@ function printPage() {
   color: var(--text);
 }
 
+.rp-kpi-value--small {
+  font-size: 17px;
+}
+
 .rp-kpi-sub {
   margin-top: 7px;
   font-size: 11px;
@@ -1439,6 +1465,26 @@ function printPage() {
 }
 
 .rp-search-mini-input::placeholder { color: var(--muted); }
+
+.rp-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 12px 16px 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(245, 158, 11, .24);
+  background: rgba(245, 158, 11, .08);
+  color: #78350f;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.rp-note i {
+  margin-top: 2px;
+  color: var(--amber);
+}
 
 /* ─── Table ──────────────────────────────── */
 .rp-table-wrap {
