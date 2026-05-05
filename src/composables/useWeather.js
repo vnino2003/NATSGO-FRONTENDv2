@@ -14,13 +14,11 @@ const DEFAULT_WEATHER = {
   location: "",
   icon: "fas fa-cloud",
   updated_at: null,
-  cached_at: null,
 };
 
 const weather = ref(loadCachedWeather());
 const loading = ref(false);
 const error = ref("");
-const isRefreshing = ref(false);
 
 function loadCachedWeather() {
   try {
@@ -44,36 +42,40 @@ function loadCachedWeather() {
 
 function saveCachedWeather(data) {
   try {
-    const payload = {
-      ...data,
-      cached_at: Date.now(),
-    };
-
-    localStorage.setItem(WEATHER_CACHE_KEY, JSON.stringify(payload));
-    weather.value = payload;
+    localStorage.setItem(
+      WEATHER_CACHE_KEY,
+      JSON.stringify({
+        ...data,
+        cached_at: Date.now(),
+      })
+    );
   } catch {
-    weather.value = data;
+    // ignore storage errors
   }
 }
 
 function isCacheFresh() {
-  const cachedAt = Number(weather.value?.cached_at || 0);
-  if (!cachedAt) return false;
+  try {
+    const raw = localStorage.getItem(WEATHER_CACHE_KEY);
+    if (!raw) return false;
 
-  return Date.now() - cachedAt < WEATHER_CACHE_MAX_AGE;
-}
+    const cached = JSON.parse(raw);
+    if (!cached?.cached_at) return false;
 
-function hasUsableWeatherData() {
-  return (
-    weather.value &&
-    weather.value.temp !== null &&
-    weather.value.temp !== undefined
-  );
+    return Date.now() - Number(cached.cached_at) < WEATHER_CACHE_MAX_AGE;
+  } catch {
+    return false;
+  }
 }
 
 export function useWeather() {
   const hasWeather = computed(() => {
-    return hasUsableWeatherData();
+    return (
+      weather.value &&
+      weather.value.temp !== null &&
+      weather.value.temp !== undefined &&
+      weather.value.location
+    );
   });
 
   const temp = computed(() => weather.value?.temp ?? "");
@@ -81,23 +83,25 @@ export function useWeather() {
   const max = computed(() => weather.value?.max ?? "");
   const heatIndex = computed(() => weather.value?.heatIndex ?? null);
   const condition = computed(() => weather.value?.condition || "Weather unavailable");
-  const location = computed(() => weather.value?.location || "Current location");
+  const location = computed(() => weather.value?.location || "");
   const icon = computed(() => weather.value?.icon || "fas fa-cloud");
 
   async function loadWeather(options = {}) {
     const { force = false } = options;
 
-    // Never show loading UI for weather card.
-    // This prevents the card from blinking / going blank.
-    loading.value = false;
+    // Important:
+    // If may cached weather na, huwag na mag-loading UI.
+    // I-refresh lang silently sa background.
+    const alreadyHasWeather = hasWeather.value;
 
-    if (isRefreshing.value) return;
-
-    if (!force && hasUsableWeatherData() && isCacheFresh()) {
+    if (!force && alreadyHasWeather && isCacheFresh()) {
       return;
     }
 
-    isRefreshing.value = true;
+    if (!alreadyHasWeather) {
+      loading.value = true;
+    }
+
     error.value = "";
 
     try {
@@ -114,38 +118,37 @@ export function useWeather() {
       }
 
       const nextWeather = {
-        temp: data.temp ?? data.temperature ?? null,
-        min: data.min ?? data.temp_min ?? null,
-        max: data.max ?? data.temp_max ?? null,
+        temp: data.temp ?? null,
+        min: data.min ?? null,
+        max: data.max ?? null,
         heatIndex: data.heatIndex ?? data.heat_index ?? null,
-        condition: data.condition || data.weather || "Weather unavailable",
-        location: data.location || data.place || "Current location",
+        condition: data.condition || "Weather unavailable",
+        location: data.location || "",
         icon: data.icon || "fas fa-cloud",
         updated_at: data.updated_at || new Date().toISOString(),
       };
 
+      weather.value = nextWeather;
       saveCachedWeather(nextWeather);
     } catch (err) {
       console.error("loadWeather error:", err);
 
-      error.value = err?.message || "Unable to load weather right now.";
+      error.value =
+        err?.message || "Unable to load weather right now.";
 
-      // Keep old cached weather. Do not reset card.
-      const cached = loadCachedWeather();
-
-      if (cached?.temp !== null && cached?.temp !== undefined) {
-        weather.value = cached;
+      // Do not clear old weather.
+      // Para hindi nawawala yung card kapag failed yung refresh.
+      if (!hasWeather.value) {
+        weather.value = loadCachedWeather();
       }
     } finally {
       loading.value = false;
-      isRefreshing.value = false;
     }
   }
 
   return {
     weather,
     loading,
-    isRefreshing,
     error,
     hasWeather,
     temp,
@@ -167,8 +170,8 @@ function getCurrentPosition() {
     }
 
     navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: false,
-      timeout: 8000,
+      enableHighAccuracy: true,
+      timeout: 10000,
       maximumAge: 10 * 60 * 1000,
     });
   });
