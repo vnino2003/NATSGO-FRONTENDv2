@@ -97,13 +97,7 @@
                 <i class="fas fa-user"></i>
                 {{ seatsLabel(b) }}
               </span>
-              <span class="td-meta-tag td-meta-tag--soft">
-                <i class="fas fa-satellite-dish"></i>
-                Sats {{ b.sats ?? "—" }}
-              </span>
-              <span class="td-meta-tag td-meta-tag--soft">
-                HDOP {{ b.hdop ?? "—" }}
-              </span>
+        
             </div>
           </div>
 
