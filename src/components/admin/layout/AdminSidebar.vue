@@ -46,11 +46,7 @@
         <span v-if="!collapsed">Buses</span>
       </RouterLink>
 
-      <RouterLink class="as-item" to="/admin/routes">
-        <i class="fas fa-route"></i>
-        <span v-if="!collapsed">Routes</span>
-      </RouterLink>
-
+    
       <RouterLink class="as-item" to="/admin/terminals">
         <i class="fas fa-warehouse"></i>
         <span v-if="!collapsed">Terminals</span>
@@ -99,7 +95,7 @@
 
       <RouterLink class="as-item" to="/admin/analytics">
         <i class="fas fa-chart-pie"></i>
-        <span v-if="!collapsed">Reports</span>
+        <span v-if="!collapsed"></span>
       </RouterLink>
 
       <!-- System -->
